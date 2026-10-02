@@ -1,0 +1,14 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import App from './App'
+
+describe('Dashboard', () => {
+  it('renders the primary operating sections', () => {
+    render(<App />)
+    expect(screen.getByRole('heading', { name: '登录系统' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    expect(screen.getByRole('heading', { name: '经营概览' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '今日执行中心' })).toBeInTheDocument()
+    expect(screen.getByText('D0 护理确认')).toBeInTheDocument()
+  })
+})
