@@ -1474,7 +1474,7 @@ function Visits({
   const today = todayInShanghai();
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if ((role !== "member_admin" && role !== "management") || !member) return;
+    if ((role !== "member_admin" && role !== "management") || !member || member.kind === "prospect") return;
     const date = String(new FormData(e.currentTarget).get("date"));
     try {
       await createTreatment(member.id, date);
@@ -1510,7 +1510,7 @@ function Visits({
                 <>
                   <strong>{member.name}</strong>
                   <span>
-                    {member.level} · 最近治疗到诊 {member.lastVisit}
+                    {member.kind === "prospect" ? "准会员 · 不记录到诊及回访" : `${member.level} · 最近治疗到诊 ${member.lastVisit}`}
                   </span>
                 </>
               ) : (
@@ -1524,7 +1524,7 @@ function Visits({
           </label>
           <button
             className="primary-action wide"
-            disabled={!member || (role !== "member_admin" && role !== "management")}
+            disabled={!member || member.kind === "prospect" || (role !== "member_admin" && role !== "management")}
           >
             保存治疗并创建服务周期
           </button>
@@ -1533,7 +1533,7 @@ function Visits({
           <ShieldCheck size={25} />
           <h3>统计口径</h3>
           <p>
-            系统不记录复查、面诊、领取礼品或活动体验等非治疗型到诊。保存治疗会在同一事务中写入治疗到诊和六项服务任务；再次治疗会覆盖旧周期未完成任务。
+            准会员不生成任何到诊记录和回访提醒。正式会员仅记录实际治疗到诊，保存后在同一事务中生成六项服务任务。
           </p>
         </article>
       </div>
