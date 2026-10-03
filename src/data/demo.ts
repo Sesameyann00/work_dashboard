@@ -6,6 +6,7 @@ export type Member = {
   phone: string;
   consultant: string;
   hasServiceGroup: boolean;
+  kind: "prospect" | "member";
   level: "V1" | "V2" | "V3" | "V4" | "V5";
   birthday: string;
   joinedOn: string;
@@ -33,6 +34,7 @@ export const demoMembers: Member[] = [
     phone: "13800000001",
     consultant: "张顾问",
     hasServiceGroup: true,
+    kind: "member",
     level: "V5",
     birthday: "1988-10-08",
     joinedOn: "2023-03-12",
@@ -47,6 +49,7 @@ export const demoMembers: Member[] = [
     phone: "13800000002",
     consultant: "李顾问",
     hasServiceGroup: true,
+    kind: "member",
     level: "V4",
     birthday: "1991-04-16",
     joinedOn: "2024-01-08",
@@ -61,6 +64,7 @@ export const demoMembers: Member[] = [
     phone: "13800000003",
     consultant: "张顾问",
     hasServiceGroup: false,
+    kind: "member",
     level: "V5",
     birthday: "1985-12-03",
     joinedOn: "2022-09-21",
@@ -75,6 +79,7 @@ export const demoMembers: Member[] = [
     phone: "13800000004",
     consultant: "王顾问",
     hasServiceGroup: true,
+    kind: "member",
     level: "V3",
     birthday: "1994-10-21",
     joinedOn: "2025-02-17",
@@ -89,6 +94,7 @@ export const demoMembers: Member[] = [
     phone: "13800000005",
     consultant: "李顾问",
     hasServiceGroup: false,
+    kind: "member",
     level: "V2",
     birthday: "1990-07-11",
     joinedOn: "2025-06-01",
@@ -151,7 +157,7 @@ export const demoTasks: Task[] = [
     memberId: "m5",
     member: "赵女士",
     level: "V2",
-    type: "分享权益结束前 15 天提醒",
+    type: "分享权益剩余 7 天提醒",
     due: "2025-09-01",
     status: "pending",
     owner: "会员中心",

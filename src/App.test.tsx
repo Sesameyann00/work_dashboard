@@ -6,6 +6,8 @@ describe('Dashboard', () => {
   it('renders the primary operating sections', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: '登录系统' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: 'vip001' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
     expect(screen.getByRole('heading', { name: '经营概览' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '今日执行中心' })).toBeInTheDocument()

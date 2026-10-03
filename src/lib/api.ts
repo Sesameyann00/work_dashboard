@@ -3,10 +3,12 @@ import { supabase, usernameToAuthEmail } from './supabase'
 export type MemberRow = {
   id: string
   member_card_number: string
+  source_card_number: string | null
   name: string
   phone: string
   consultant: string | null
   has_service_group: boolean
+  member_kind: 'prospect' | 'member'
   level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
   birthday: string | null
   joined_on: string | null
@@ -21,7 +23,9 @@ export type DashboardData = {
   monthlyVisitMembers: number
   serviceCompletionRate: number
   overdueTasks: number
-  v1UpgradedMembers: string[]
+  prospectCount: number
+  prospectConvertedThisMonth: number
+  levelVisitCounts: { level: string; visits: number }[]
   trend: { month: string; visits: number }[]
 }
 
@@ -85,26 +89,28 @@ export async function listMembers() {
 }
 
 export async function listTasks() {
-  const { data, error } = await client().from('tasks').select('id,member_id,task_type,due_date,status,members(name,level)').order('due_date')
+  const { data, error } = await client().from('tasks').select('id,member_id,task_type,due_date,status,members(name,level,member_kind)').order('due_date')
   if (error) throw error
   return data
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [{ data: metrics, error: metricsError }, { data: trend, error: trendError }, { data: upgrades, error: upgradesError }] = await Promise.all([
+  const [{ data: metrics, error: metricsError }, { data: trend, error: trendError }, { data: levelVisits, error: levelVisitsError }] = await Promise.all([
     client().from('dashboard_live_metrics').select('*').single(),
     client().from('monthly_visit_trend').select('month,member_count').order('month'),
-    client().from('v1_member_upgrades').select('member_id'),
+    client().from('monthly_visit_level_counts').select('level,member_count').order('level'),
   ])
   if (metricsError) throw metricsError
   if (trendError) throw trendError
-  if (upgradesError) throw upgradesError
+  if (levelVisitsError) throw levelVisitsError
   return {
     totalMembers: Number(metrics.total_members ?? 0),
     monthlyVisitMembers: Number(metrics.monthly_visit_members ?? 0),
     serviceCompletionRate: Number(metrics.service_completion_rate ?? 0),
     overdueTasks: Number(metrics.overdue_tasks ?? 0),
-    v1UpgradedMembers: (upgrades ?? []).map((row) => row.member_id),
+    prospectCount: Number(metrics.prospect_count ?? 0),
+    prospectConvertedThisMonth: Number(metrics.prospect_converted_this_month ?? 0),
+    levelVisitCounts: (levelVisits ?? []).map((row) => ({ level: row.level, visits: Number(row.member_count ?? 0) })),
     trend: (trend ?? []).map((row) => ({ month: row.month, visits: Number(row.member_count ?? 0) })),
   }
 }
@@ -125,6 +131,7 @@ export async function createMember(input: {
   phone: string
   consultant: string | null
   has_service_group: boolean
+  member_kind: 'prospect' | 'member'
   level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
   birthday: string | null
   joined_on: string | null
@@ -146,6 +153,7 @@ export async function updateMember(memberId: string, input: {
   phone: string
   consultant: string | null
   has_service_group: boolean
+  member_kind: 'prospect' | 'member'
   level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
   birthday: string | null
   joined_on: string | null
@@ -191,8 +199,8 @@ export async function confirmD0(taskIds: string[]) {
   return data
 }
 
-export async function processTaskBatch(taskIds: string[]) {
-  const { data, error } = await client().rpc('process_task_batch', { target_task_ids: taskIds })
+export async function processTaskBatch(taskIds: string[], targetStatus: 'completed' | 'archived') {
+  const { data, error } = await client().rpc('process_task_batch', { target_task_ids: taskIds, target_status: targetStatus })
   if (error) throw error
   return Number(data ?? 0)
 }

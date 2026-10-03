@@ -91,7 +91,9 @@ const taskNames: Record<string, string> = {
   validity_7d: "有效期 7 天提醒",
   share_benefit_expiry: "分享权益到期提醒",
   share_benefit_day_30: "分享权益第 30 天提醒",
+  share_benefit_end_30d: "分享权益剩余 30 天提醒",
   share_benefit_end_15d: "分享权益结束前 15 天提醒",
+  share_benefit_end_7d: "分享权益剩余 7 天提醒",
 };
 
 function todayInShanghai() {
@@ -119,11 +121,12 @@ function displayDate(date: string | null | undefined) {
 function mapMember(row: MemberRow): Member {
   return {
     id: row.id,
-    cardNumber: row.member_card_number,
+    cardNumber: row.source_card_number || row.member_card_number,
     name: row.name,
     phone: row.phone,
     consultant: row.consultant || "",
     hasServiceGroup: row.has_service_group,
+    kind: row.member_kind,
     level: row.level,
     birthday: displayDate(row.birthday),
     joinedOn: displayDate(row.joined_on),
@@ -135,13 +138,13 @@ function mapMember(row: MemberRow): Member {
 }
 
 function mapTask(row: Record<string, unknown>): Task {
-  const member = row.members as { name?: string; level?: string } | null;
+  const member = row.members as { name?: string; level?: string; member_kind?: string } | null;
   const taskType = String(row.task_type);
   return {
     id: String(row.id),
     memberId: String(row.member_id),
     member: member?.name || "未知会员",
-    level: member?.level || "—",
+    level: member?.member_kind === "prospect" ? "准会员" : member?.level || "—",
     type: taskNames[taskType] || taskType,
     due: String(row.due_date),
     status: row.status as Task["status"],
@@ -259,7 +262,9 @@ function Workspace({
     monthlyVisitMembers: 0,
     serviceCompletionRate: 0,
     overdueTasks: 0,
-    v1UpgradedMembers: [],
+    prospectCount: 0,
+    prospectConvertedThisMonth: 0,
+    levelVisitCounts: [],
     trend: [],
   });
   const [dataLoading, setDataLoading] = useState(hasSupabaseConfig);
@@ -530,8 +535,8 @@ function Workspace({
 function Login({ onLogin }: { onLogin: (role: Role) => void }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [username, setUsername] = useState("vip001");
-  const [password, setPassword] = useState("Demo123!");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("member_admin");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -646,10 +651,13 @@ function Dashboard({
     month: `${Number(item.month.slice(5, 7))}月`,
     visits: item.visits,
   }));
-  const levelCounts = ["V1", "V2", "V3", "V4", "V5"].map((level) => ({
+  const formalMembers = members.filter((member) => member.kind === "member");
+  const prospectMembers = members.filter((member) => member.kind === "prospect");
+  const levelVisitCounts = ["V1", "V2", "V3", "V4", "V5"].map((level) => ({
     level,
-    count: members.filter((m) => m.level === level).length,
+    count: data.levelVisitCounts.find((item) => item.level === level)?.visits ?? 0,
   }));
+  const maxLevelVisits = Math.max(...levelVisitCounts.map((item) => item.count), 1);
   return (
     <>
       <section className="intro-row">
@@ -673,7 +681,7 @@ function Dashboard({
           icon={UsersRound}
           accent="purple"
           onClick={() =>
-            setDetail({ title: "有效会员明细", subtitle: `共 ${members.length} 名会员`, members })
+            setDetail({ title: "有效会员明细", subtitle: `共 ${formalMembers.length} 名正式会员`, members: formalMembers })
           }
         />
         <Metric
@@ -683,7 +691,7 @@ function Dashboard({
           icon={TrendingUp}
           accent="blue"
           onClick={() => {
-            const rows = members.filter((member) => member.lastVisit.startsWith(currentMonth));
+            const rows = formalMembers.filter((member) => member.lastVisit.startsWith(currentMonth));
             setDetail({ title: "本月到诊会员", subtitle: `${currentMonth} 去重到诊会员`, members: rows });
           }}
         />
@@ -712,26 +720,30 @@ function Dashboard({
           }
         />
         <Metric
-          label="V1 升级会员"
-          value={String(data.v1UpgradedMembers.length)}
-          note="已记录从 V1 升至 V2 或更高"
+          label="准会员蓄水池"
+          value={String(data.prospectCount)}
+          note={`本月已转正式会员 ${data.prospectConvertedThisMonth} 人`}
           icon={TrendingUp}
           accent="purple"
           onClick={() => setDetail({
-            title: "V1 升级会员",
-            subtitle: "从等级变动历史统计，不等同于当前 V2+ 人数",
-            members: members.filter((member) => data.v1UpgradedMembers.includes(member.id)),
+            title: "准会员蓄水池",
+            subtitle: "当前准会员档案，用于跟踪后续转化",
+            members: prospectMembers,
           })}
         />
       </section>
       <section className="dashboard-grid">
         <article
           className="panel clickable-panel"
-          onClick={() => setDetail({ title: "会员等级结构", subtitle: "点击会员可在会员管理中继续查阅", members })}
+          onClick={() => setDetail({
+            title: "本月各级会员到诊明细",
+            subtitle: `${currentMonth} 正式会员治疗型到诊`,
+            members: formalMembers.filter((member) => member.lastVisit.startsWith(currentMonth)),
+          })}
         >
-          <PanelHeading title="会员结构" subtitle="当前有效会员等级分布" />
+          <PanelHeading title="本月各级会员到诊量" subtitle="按当前会员等级去重统计" />
           <div className="level-list">
-            {levelCounts.map((x) => (
+            {levelVisitCounts.map((x) => (
               <div className="level-row" key={x.level}>
                 <div className="level-name">
                   <span />
@@ -740,7 +752,7 @@ function Dashboard({
                 <div className="level-track">
                   <i
                     style={{
-                      width: `${members.length ? Math.max((x.count / members.length) * 100, 4) : 0}%`,
+                      width: `${x.count ? Math.max((x.count / maxLevelVisits) * 100, 4) : 0}%`,
                     }}
                   />
                 </div>
@@ -751,7 +763,7 @@ function Dashboard({
         </article>
         <article
           className="panel clickable-panel"
-          onClick={() => setDetail({ title: "会员活跃明细", subtitle: "当前会员最近一次治疗型到诊", members: members.filter((member) => member.lastVisit !== "—").sort((a, b) => b.lastVisit.localeCompare(a.lastVisit)) })}
+          onClick={() => setDetail({ title: "会员活跃明细", subtitle: "正式会员最近一次治疗型到诊", members: formalMembers.filter((member) => member.lastVisit !== "—").sort((a, b) => b.lastVisit.localeCompare(a.lastVisit)) })}
         >
           <PanelHeading
             title="会员活跃趋势"
@@ -829,7 +841,7 @@ function Dashboard({
           <div className="detail-list">
             {detail.members?.map((member) => (
               <button key={member.id} onClick={() => onNavigate("members")}>
-                <span><strong>{member.name}</strong><small>{member.phone} · {member.level}</small></span>
+                <span><strong>{member.name}</strong><small>{member.phone} · {member.kind === "prospect" ? "准会员" : member.level}</small></span>
                 <span>{member.lastVisit === "—" ? member.validUntil : `最近到诊 ${member.lastVisit}`}</span>
               </button>
             ))}
@@ -863,11 +875,13 @@ function Members({
   notify: (s: string) => void;
 }) {
   const [view, setView] = useState<"service" | "manage">("service");
+  const [memberScope, setMemberScope] = useState<"all" | "member" | "prospect">("all");
   const [localQuery, setLocalQuery] = useState("");
   const [selected, setSelected] = useState<Member | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const query = searchQuery || localQuery;
   const filtered = members.filter((m) =>
+    (memberScope === "all" || m.kind === memberScope) &&
     `${m.name}${m.phone}${m.cardNumber}${m.consultant}`.includes(query),
   );
   const add = async (e: FormEvent<HTMLFormElement>) => {
@@ -885,6 +899,7 @@ function Members({
           phone,
           consultant: String(data.get("consultant")) || null,
           has_service_group: data.get("hasServiceGroup") === "yes",
+          member_kind: String(data.get("memberKind")) as Member["kind"],
           level: String(data.get("level")) as Member["level"],
           birthday: String(data.get("birthday")) || null,
           joined_on: String(data.get("joinedOn")) || null,
@@ -941,6 +956,13 @@ function Members({
             </select>
           </label>
           <label>
+            档案类型
+            <select name="memberKind" defaultValue="member">
+              <option value="member">正式会员</option>
+              <option value="prospect">准会员</option>
+            </select>
+          </label>
+          <label>
             等级
             <select name="level">
               {["V1", "V2", "V3", "V4", "V5"].map((x) => (
@@ -978,6 +1000,15 @@ function Members({
           >
             会员管理视图
           </button>
+        </div>
+        <div className="tabs">
+          {([
+            ["all", `全部 ${members.length}`],
+            ["member", `正式会员 ${members.filter((member) => member.kind === "member").length}`],
+            ["prospect", `准会员 ${members.filter((member) => member.kind === "prospect").length}`],
+          ] as const).map(([id, label]) => (
+            <button key={id} className={memberScope === id ? "active" : ""} onClick={() => setMemberScope(id)}>{label}</button>
+          ))}
         </div>
         <input
           placeholder="搜索姓名、手机号、卡号或所属咨询"
@@ -1019,7 +1050,9 @@ function Members({
               </small>
             </span>
             <span>
-              <b className={`level-badge ${m.level}`}>{m.level}</b>
+              <b className={`level-badge ${m.kind === "prospect" ? "prospect" : m.level}`}>
+                {m.kind === "prospect" ? "准会员" : m.level}
+              </b>
             </span>
             {view === "service" ? (
               <>
@@ -1103,6 +1136,7 @@ function MemberDetail({
         phone: String(data.get("phone")).replace(/\D/g, ""),
         consultant: String(data.get("consultant")) || null,
         has_service_group: data.get("hasServiceGroup") === "yes",
+        member_kind: String(data.get("memberKind")) as Member["kind"],
         level: String(data.get("level")) as Member["level"],
         birthday: String(data.get("birthday")) || null,
         joined_on: String(data.get("joinedOn")) || null,
@@ -1120,7 +1154,9 @@ function MemberDetail({
     <div className="drawer">
       <div className="drawer-head">
         <div>
-          <span className={`level-badge ${member.level}`}>{member.level}</span>
+          <span className={`level-badge ${member.kind === "prospect" ? "prospect" : member.level}`}>
+            {member.kind === "prospect" ? "准会员" : member.level}
+          </span>
           <h2>{member.name}</h2>
           <p>{member.phone}</p>
         </div>
@@ -1152,6 +1188,13 @@ function MemberDetail({
             </select>
           </label>
           <label>
+            档案类型
+            <select name="memberKind" defaultValue={member.kind}>
+              <option value="prospect">准会员</option>
+              <option value="member">正式会员</option>
+            </select>
+          </label>
+          <label>
             等级
             <select name="level" defaultValue={member.level}>
               {(["V1", "V2", "V3", "V4", "V5"] as const).map((level) => (
@@ -1167,6 +1210,9 @@ function MemberDetail({
         </form>
       )}
       <div className="detail-grid">
+        <span>
+          档案类型<strong>{member.kind === "prospect" ? "准会员" : "正式会员"}</strong>
+        </span>
         <span>
           会员卡号<strong>{member.cardNumber}</strong>
         </span>
@@ -1236,10 +1282,11 @@ function Tasks({
   const [filter, setFilter] = useState("all");
   const [category, setCategory] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchStatus, setBatchStatus] = useState<"completed" | "archived">("completed");
   const categoryOf = (task: Task) =>
     task.type.includes("有效期")
       ? "member_expiry"
-      : task.type.includes("权益到期")
+      : task.type.includes("分享权益") || task.type.includes("权益到期")
         ? "share_expiry"
         : task.type.includes("生日")
           ? "birthday"
@@ -1272,10 +1319,10 @@ function Tasks({
   const processSelected = async () => {
     if (!selectedIds.length) return notify("请先选择待处理任务");
     try {
-      const changed = await processTaskBatch(selectedIds);
+      const changed = await processTaskBatch(selectedIds, batchStatus);
       setSelectedIds([]);
       await onRefresh();
-      notify(`已批量处理 ${changed} 项任务`);
+      notify(`已将 ${changed} 项任务标记为${batchStatus === "completed" ? "已完成" : "已归档"}`);
     } catch (error) {
       notify(error instanceof Error ? error.message : "批量处理失败");
     }
@@ -1298,19 +1345,6 @@ function Tasks({
       notify(error instanceof Error ? error.message : "任务处理失败");
     }
   };
-  const confirmAll = async () => {
-    const ids = tasks
-      .filter((task) => task.owner === "护士长" && task.status === "pending")
-      .map((task) => task.id);
-    if (!ids.length) return notify("没有待确认的 D0 任务");
-    try {
-      await confirmD0(ids);
-      await onRefresh();
-      notify("已批量确认全部待处理 D0");
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "批量确认失败");
-    }
-  };
   return (
     <>
       <section className="page-heading">
@@ -1320,10 +1354,11 @@ function Tasks({
         </div>
         <div className="batch-actions">
           {selectedIds.length > 0 && <span>已选 {selectedIds.length} 项</span>}
+          <select aria-label="批量处理结果" value={batchStatus} onChange={(event) => setBatchStatus(event.target.value as "completed" | "archived")}>
+            <option value="completed">已完成</option>
+            <option value="archived">已归档</option>
+          </select>
           <button className="primary-action" onClick={processSelected}>批量处理所选</button>
-          {(role === "head_nurse" || role === "management") && (
-            <button className="secondary-action" onClick={confirmAll}>全部确认 D0</button>
-          )}
         </div>
       </section>
       <div className="toolbar">

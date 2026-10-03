@@ -2,10 +2,12 @@ import { expect, test } from '@playwright/test'
 
 test('dashboard exposes core daily work', async ({ page }) => {
   await page.goto('/')
+  await page.getByLabel('登录名').fill('vip001')
+  await page.getByLabel('密码').fill('Demo123!')
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page.getByRole('heading', { name: '经营概览' })).toBeVisible()
   await expect(page.getByText('今日执行中心')).toBeVisible()
-  await expect(page.getByText('会员结构')).toBeVisible()
+  await expect(page.getByText('本月各级会员到诊量')).toBeVisible()
   await page.getByRole('button', { name: /今日待办/ }).click()
   await expect(page.getByRole('heading', { name: '今日待办', level: 2 })).toBeVisible()
   await expect(page.getByText(/今天及逾期共 \d+ 项/)).toBeVisible()
@@ -16,6 +18,8 @@ test('dashboard exposes core daily work', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '服务任务', level: 2 })).toBeVisible()
   await expect(page.getByText('D3 回访')).toBeVisible()
   await expect(page.getByRole('button', { name: '批量处理所选' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '全部确认 D0' })).toHaveCount(0)
+  await page.getByLabel('批量处理结果').selectOption('archived')
   await page.getByRole('checkbox', { name: '选择当前列表全部待处理任务' }).check()
   await expect(page.getByText(/已选 \d+ 项/)).toBeVisible()
 })

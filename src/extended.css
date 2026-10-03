@@ -148,11 +148,16 @@
   background: #66508a;
   color: #fff;
 }
+.level-badge.prospect {
+  background: #f6ead3;
+  color: #8a5d24;
+}
 .task-table .data-row {
   grid-template-columns: 34px 1.2fr 1fr 0.8fr 0.8fr 0.6fr;
 }
 .batch-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .batch-actions span { color: var(--muted); font-size: 12px; }
+.batch-actions select { height: 40px; padding: 0 30px 0 11px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: #51485b; }
 .secondary-action { height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: #51485b; }
 .small-action {
   padding: 6px 11px;
