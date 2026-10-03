@@ -253,7 +253,7 @@ function Workspace({
   onSignedOut: () => void;
 }) {
   const [role, setRole] = useState<Role>(initialRole);
-  const [page, setPage] = useState<Page>("dashboard");
+  const [page, setPage] = useState<Page>(initialRole === "management" ? "dashboard" : "today");
   const demoMode = isDemoAuthEnabled && !hasSupabaseConfig;
   const [members, setMembers] = useState<Member[]>(demoMode ? demoMembers : []);
   const [tasks, setTasks] = useState<Task[]>(demoMode ? demoTasks : []);
@@ -288,12 +288,12 @@ function Workspace({
       const [memberRows, taskRows, metrics, batches] = await Promise.all([
         listMembers(),
         listTasks(),
-        getDashboardData(),
+        role === "management" ? getDashboardData() : Promise.resolve(null),
         listImportBatches(),
       ]);
       setMembers(memberRows.map(mapMember));
       setTasks(taskRows.map((row) => mapTask(row as Record<string, unknown>)));
-      setDashboardData(metrics);
+      if (metrics) setDashboardData(metrics);
       setImportBatches(
         batches.map((batch) => ({
           ...batch,
@@ -307,7 +307,7 @@ function Workspace({
     } finally {
       setDataLoading(false);
     }
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     queueMicrotask(() => void refreshData());
@@ -330,8 +330,9 @@ function Workspace({
     },
     { id: "visits" as Page, label: "治疗到诊", icon: CalendarDays },
     { id: "import" as Page, label: "数据导入", icon: FileSpreadsheet },
-  ].filter(
-    (item) => role !== "head_nurse" || ["dashboard", "today", "tasks"].includes(item.id),
+  ].filter((item) =>
+    (item.id !== "dashboard" || role === "management") &&
+    (role !== "head_nurse" || ["today", "tasks"].includes(item.id)),
   );
 
   return (
@@ -452,7 +453,7 @@ function Workspace({
                 value={role}
                 onChange={(e) => {
                   setRole(e.target.value as Role);
-                  setPage("dashboard");
+                  setPage(e.target.value === "management" ? "dashboard" : "today");
                 }}
               >
                 <option value="member_admin">会员中心主管</option>
@@ -472,7 +473,7 @@ function Workspace({
             </div>
           )}
           {dataLoading && <div className="demo-banner">正在同步 Supabase 数据…</div>}
-          {page === "dashboard" && (
+          {page === "dashboard" && role === "management" && (
             <Dashboard
               members={members}
               tasks={tasks}
@@ -876,14 +877,23 @@ function Members({
 }) {
   const [view, setView] = useState<"service" | "manage">("service");
   const [memberScope, setMemberScope] = useState<"all" | "member" | "prospect">("all");
+  const [levelFilter, setLevelFilter] = useState<"all" | Member["level"]>("all");
+  const [visitSort, setVisitSort] = useState<"default" | "asc" | "desc">("default");
   const [localQuery, setLocalQuery] = useState("");
   const [selected, setSelected] = useState<Member | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const query = searchQuery || localQuery;
-  const filtered = members.filter((m) =>
-    (memberScope === "all" || m.kind === memberScope) &&
-    `${m.name}${m.phone}${m.cardNumber}${m.consultant}`.includes(query),
-  );
+  const filtered = members
+    .filter((m) =>
+      (memberScope === "all" || m.kind === memberScope) &&
+      (levelFilter === "all" || (m.kind === "member" && m.level === levelFilter)) &&
+      `${m.name}${m.phone}${m.cardNumber}${m.consultant}`.includes(query),
+    )
+    .sort((a, b) => {
+      if (visitSort === "asc") return a.visits - b.visits || a.name.localeCompare(b.name, "zh-CN");
+      if (visitSort === "desc") return b.visits - a.visits || a.name.localeCompare(b.name, "zh-CN");
+      return 0;
+    });
   const add = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -1010,6 +1020,21 @@ function Members({
             <button key={id} className={memberScope === id ? "active" : ""} onClick={() => setMemberScope(id)}>{label}</button>
           ))}
         </div>
+        <label className="toolbar-select">
+          <span>会员等级</span>
+          <select aria-label="按会员等级筛选" value={levelFilter} onChange={(event) => setLevelFilter(event.target.value as "all" | Member["level"])}>
+            <option value="all">全部等级</option>
+            {(["V1", "V2", "V3", "V4", "V5"] as const).map((level) => <option key={level} value={level}>{level}</option>)}
+          </select>
+        </label>
+        <label className="toolbar-select">
+          <span>到诊次数</span>
+          <select aria-label="按到诊次数排序" value={visitSort} onChange={(event) => setVisitSort(event.target.value as "default" | "asc" | "desc")}>
+            <option value="default">默认排序</option>
+            <option value="desc">从高到低</option>
+            <option value="asc">从低到高</option>
+          </select>
+        </label>
         <input
           placeholder="搜索姓名、手机号、卡号或所属咨询"
           value={query}

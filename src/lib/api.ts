@@ -95,14 +95,16 @@ export async function listTasks() {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [{ data: metrics, error: metricsError }, { data: trend, error: trendError }, { data: levelVisits, error: levelVisitsError }] = await Promise.all([
-    client().from('dashboard_live_metrics').select('*').single(),
-    client().from('monthly_visit_trend').select('month,member_count').order('month'),
-    client().from('monthly_visit_level_counts').select('level,member_count').order('level'),
-  ])
-  if (metricsError) throw metricsError
-  if (trendError) throw trendError
-  if (levelVisitsError) throw levelVisitsError
+  const { data, error } = await client().rpc('get_management_dashboard')
+  if (error) throw error
+  const payload = data as {
+    metrics?: Record<string, unknown>
+    trend?: { month: string; member_count: number }[]
+    level_visits?: { level: string; member_count: number }[]
+  }
+  const metrics = payload.metrics ?? {}
+  const trend = payload.trend ?? []
+  const levelVisits = payload.level_visits ?? []
   return {
     totalMembers: Number(metrics.total_members ?? 0),
     monthlyVisitMembers: Number(metrics.monthly_visit_members ?? 0),

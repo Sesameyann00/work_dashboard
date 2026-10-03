@@ -55,6 +55,21 @@
   border-radius: 10px;
   background: #fff;
 }
+.toolbar-select {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.toolbar-select select {
+  min-width: 112px;
+  height: 38px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: #514b56;
+}
 .tabs {
   display: flex;
   gap: 4px;
@@ -513,6 +528,9 @@
     flex-direction: column;
   }
   .toolbar > input {
+    width: 100%;
+  }
+  .toolbar-select select {
     width: 100%;
   }
   .page-heading {
