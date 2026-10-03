@@ -9,6 +9,7 @@ const migrations = [
   'supabase/migrations/202610010005_import_and_gifts.sql',
   'supabase/migrations/202610010006_share_benefit_expiry.sql',
   'supabase/migrations/202610010007_member_consultant.sql',
+  'supabase/migrations/202610020003_member_card_and_service_group.sql',
 ]
 
 async function expectFailure(label, action) {
@@ -63,7 +64,8 @@ for (const name of expectedTables) {
 }
 
 const members = await database.query(`
-  select name, normalized_phone, consultant, last_visit_date::text, visit_count
+  select name, normalized_phone, member_card_number, consultant,
+    has_service_group, last_visit_date::text, visit_count
   from public.members order by name
 `)
 if (members.rows.length !== 5) throw new Error('seed should create five members')
@@ -71,6 +73,9 @@ const zhou = members.rows.find((row) => row.name === '周女士')
 if (zhou.normalized_phone !== '13800000003') throw new Error('phone normalization failed')
 const lin = members.rows.find((row) => row.name === '林女士')
 if (lin.consultant !== '张顾问') throw new Error('member consultant field failed')
+if (!/^QZW[0-9]{10}$/.test(lin.member_card_number)) throw new Error('member card number generation failed')
+if (new Set(members.rows.map((row) => row.member_card_number)).size !== 5) throw new Error('member card numbers must be unique')
+if (lin.has_service_group !== false) throw new Error('service group should default to false')
 if (lin.visit_count !== 2 || lin.last_visit_date !== '2026-09-28') throw new Error('visit aggregate trigger failed')
 const shareExpiry = await database.query(`
   select due_date::text from public.tasks

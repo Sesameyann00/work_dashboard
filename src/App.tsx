@@ -1,5 +1,13 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import {
   Bell,
   CalendarDays,
@@ -9,6 +17,7 @@ import {
   FileSpreadsheet,
   Gift,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   Menu,
   Search,
@@ -35,96 +44,289 @@ import {
   type Role,
   type Task,
 } from "./data/demo";
-import { hasSupabaseConfig } from "./lib/supabase";
-import { getMyProfile, listMembers, restoreSession, signIn } from "./lib/api";
+import { hasSupabaseConfig, isDemoAuthEnabled } from "./lib/supabase";
+import {
+  completeTask,
+  confirmD0,
+  createMember,
+  createTreatment,
+  getDashboardData,
+  getMemberTimeline,
+  getMyProfile,
+  listMembers,
+  listImportBatches,
+  listTasks,
+  onAuthStateChange,
+  processTaskBatch,
+  restoreSession,
+  signIn,
+  signOut,
+  type DashboardData,
+  type ImportBatch,
+  type MemberRow,
+  type TimelineEvent,
+  updateMember,
+} from "./lib/api";
 import "./App.css";
 import "./extended.css";
 
 type Page =
-  "dashboard" | "members" | "tasks" | "visits" | "import" | "settings";
+  "dashboard" | "today" | "members" | "tasks" | "visits" | "import" | "settings";
 const roleNames: Record<Role, string> = {
   management: "管理层",
   member_admin: "会员中心主管",
   head_nurse: "护士长",
 };
-const trend = [
-  { month: "4月", visits: 86 },
-  { month: "5月", visits: 104 },
-  { month: "6月", visits: 96 },
-  { month: "7月", visits: 112 },
-  { month: "8月", visits: 139 },
-  { month: "9月", visits: 164 },
-];
+const taskNames: Record<string, string> = {
+  care_d0: "D0 护理确认",
+  followup_d1: "D1 回访",
+  followup_d3: "D3 回访",
+  followup_d7: "D7 回访",
+  followup_d15: "D15 回访",
+  followup_d30: "D30 回访",
+  birthday_notify: "生日礼月初提醒",
+  birthday_unclaimed: "生日礼 25 日提醒",
+  validity_90d: "有效期 90 天提醒",
+  validity_30d: "有效期 30 天提醒",
+  validity_7d: "有效期 7 天提醒",
+  share_benefit_expiry: "分享权益到期提醒",
+  share_benefit_day_30: "分享权益第 30 天提醒",
+  share_benefit_end_15d: "分享权益结束前 15 天提醒",
+};
+
+function todayInShanghai() {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
+function fullDateInShanghai() {
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    dateStyle: "full",
+  }).format(new Date());
+}
+
+function displayDate(date: string | null | undefined) {
+  return date || "—";
+}
+
+function mapMember(row: MemberRow): Member {
+  return {
+    id: row.id,
+    cardNumber: row.member_card_number,
+    name: row.name,
+    phone: row.phone,
+    consultant: row.consultant || "",
+    hasServiceGroup: row.has_service_group,
+    level: row.level,
+    birthday: displayDate(row.birthday),
+    joinedOn: displayDate(row.joined_on),
+    membershipChangedOn: displayDate(row.membership_changed_on),
+    validUntil: displayDate(row.valid_until),
+    lastVisit: displayDate(row.last_visit_date),
+    visits: row.visit_count,
+  };
+}
+
+function mapTask(row: Record<string, unknown>): Task {
+  const member = row.members as { name?: string; level?: string } | null;
+  const taskType = String(row.task_type);
+  return {
+    id: String(row.id),
+    memberId: String(row.member_id),
+    member: member?.name || "未知会员",
+    level: member?.level || "—",
+    type: taskNames[taskType] || taskType,
+    due: String(row.due_date),
+    status: row.status as Task["status"],
+    owner: taskType === "care_d0" ? "护士长" : "会员中心",
+  };
+}
 
 function App() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  return (
+    <BrowserRouter>
+      <AuthRoutes />
+    </BrowserRouter>
+  );
+}
+
+function AuthRoutes() {
+  const [authState, setAuthState] = useState<
+    "loading" | "authenticated" | "anonymous"
+  >(hasSupabaseConfig ? "loading" : "anonymous");
   const [role, setRole] = useState<Role>("member_admin");
+  const [displayName, setDisplayName] = useState("演示账号");
+
+  useEffect(() => {
+    if (!hasSupabaseConfig) return;
+    let active = true;
+    void restoreSession()
+      .then((profile) => {
+        if (!active) return;
+      if (profile) {
+        setRole(profile.role as Role);
+        setDisplayName(profile.display_name);
+        setAuthState("authenticated");
+        } else setAuthState("anonymous");
+      })
+      .catch(() => active && setAuthState("anonymous"));
+    const unsubscribe = onAuthStateChange((authenticated) => {
+      if (!authenticated) return setAuthState("anonymous");
+      void getMyProfile()
+        .then((profile) => {
+        if (!active) return;
+        setRole(profile.role as Role);
+        setDisplayName(profile.display_name);
+        setAuthState("authenticated");
+        })
+        .catch(() => active && setAuthState("anonymous"));
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  if (authState === "loading")
+    return (
+      <div className="auth-loading" role="status">
+        正在验证登录会话…
+      </div>
+    );
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          authState === "authenticated" ? (
+            <Navigate to="/" replace />
+          ) : (
+            <Login
+              onLogin={(nextRole) => {
+                setRole(nextRole);
+                setAuthState("authenticated");
+              }}
+            />
+          )
+        }
+      />
+      <Route
+        path="/*"
+        element={
+          authState === "authenticated" ? (
+            <Workspace
+              initialRole={role}
+              displayName={displayName}
+              onSignedOut={() => setAuthState("anonymous")}
+            />
+          ) : (
+            <RequireLogin />
+          )
+        }
+      />
+    </Routes>
+  );
+}
+
+function RequireLogin() {
+  const location = useLocation();
+  return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+}
+
+function Workspace({
+  initialRole,
+  displayName,
+  onSignedOut,
+}: {
+  initialRole: Role;
+  displayName: string;
+  onSignedOut: () => void;
+}) {
+  const [role, setRole] = useState<Role>(initialRole);
   const [page, setPage] = useState<Page>("dashboard");
-  const [members, setMembers] = useState(demoMembers);
-  const [tasks, setTasks] = useState(demoTasks);
+  const demoMode = isDemoAuthEnabled && !hasSupabaseConfig;
+  const [members, setMembers] = useState<Member[]>(demoMode ? demoMembers : []);
+  const [tasks, setTasks] = useState<Task[]>(demoMode ? demoTasks : []);
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    totalMembers: 0,
+    monthlyVisitMembers: 0,
+    serviceCompletionRate: 0,
+    overdueTasks: 0,
+    v1UpgradedMembers: [],
+    trend: [],
+  });
+  const [dataLoading, setDataLoading] = useState(hasSupabaseConfig);
+  const [importBatches, setImportBatches] = useState<ImportBatch[]>([]);
+  const [globalQuery, setGlobalQuery] = useState("");
+  const [dateLabel] = useState(fullDateInShanghai);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const today = todayInShanghai();
+  const dueTaskCount = tasks.filter(
+    (task) => task.status === "pending" && task.due <= today,
+  ).length;
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
   };
 
-  useEffect(() => {
+  const refreshData = useCallback(async () => {
     if (!hasSupabaseConfig) return;
-    restoreSession()
-      .then((profile) => {
-        if (profile) {
-          setRole(profile.role as Role);
-          setLoggedIn(true);
-        }
-      })
-      .catch(() => undefined);
+    try {
+      const [memberRows, taskRows, metrics, batches] = await Promise.all([
+        listMembers(),
+        listTasks(),
+        getDashboardData(),
+        listImportBatches(),
+      ]);
+      setMembers(memberRows.map(mapMember));
+      setTasks(taskRows.map((row) => mapTask(row as Record<string, unknown>)));
+      setDashboardData(metrics);
+      setImportBatches(
+        batches.map((batch) => ({
+          ...batch,
+          created_at: new Date(batch.created_at).toLocaleString("zh-CN", {
+            timeZone: "Asia/Shanghai",
+          }),
+        })),
+      );
+    } catch {
+      setToast("真实数据加载失败，请刷新重试");
+    } finally {
+      setDataLoading(false);
+    }
   }, []);
-  useEffect(() => {
-    if (!loggedIn || !hasSupabaseConfig) return;
-    listMembers()
-      .then((rows) =>
-        setMembers(
-          rows.map((row) => ({
-            id: row.id,
-            name: row.name,
-            phone: row.phone,
-            consultant: row.consultant || "",
-            level: row.level,
-            birthday: row.birthday || "",
-            joinedOn: row.joined_on || "",
-            validUntil: row.valid_until || "",
-            lastVisit: row.last_visit_date || "—",
-            visits: row.visit_count,
-          })),
-        ),
-      )
-      .catch(() => notify("真实会员数据加载失败，已保留当前页面数据"));
-  }, [loggedIn]);
 
-  if (!loggedIn)
-    return (
-      <Login
-        onLogin={(nextRole) => {
-          setRole(nextRole);
-          setLoggedIn(true);
-        }}
-      />
-    );
+  useEffect(() => {
+    queueMicrotask(() => void refreshData());
+  }, [refreshData]);
 
   const nav = [
     { id: "dashboard" as Page, label: "经营首页", icon: LayoutDashboard },
+    {
+      id: "today" as Page,
+      label: "今日待办",
+      icon: ListTodo,
+      badge: dueTaskCount,
+    },
     { id: "members" as Page, label: "会员管理", icon: UsersRound },
     {
       id: "tasks" as Page,
       label: "服务任务",
       icon: ClipboardCheck,
-      badge: tasks.filter((t) => t.status === "pending").length,
+      badge: dueTaskCount,
     },
     { id: "visits" as Page, label: "治疗到诊", icon: CalendarDays },
     { id: "import" as Page, label: "数据导入", icon: FileSpreadsheet },
   ].filter(
-    (item) => role !== "head_nurse" || ["dashboard", "tasks"].includes(item.id),
+    (item) => role !== "head_nurse" || ["dashboard", "today", "tasks"].includes(item.id),
   );
 
   return (
@@ -182,13 +384,21 @@ function App() {
           <div className="user-card">
             <div className="avatar">{roleNames[role][0]}</div>
             <div>
-              <strong>演示账号</strong>
+              <strong>{displayName}</strong>
               <span>{roleNames[role]}</span>
             </div>
             <button
               className="logout"
               aria-label="退出登录"
-              onClick={() => setLoggedIn(false)}
+              onClick={async () => {
+                try {
+                  if (hasSupabaseConfig) await signOut();
+                } catch {
+                  notify("退出登录失败，请重试");
+                  return;
+                }
+                onSignedOut();
+              }}
             >
               <LogOut size={16} />
             </button>
@@ -205,32 +415,46 @@ function App() {
       <main>
         <header className="topbar">
           <div>
-            <p className="eyebrow">2026年10月1日 · 星期四</p>
+            <p className="eyebrow">{dateLabel}</p>
             <h1>{nav.find((n) => n.id === page)?.label || "系统设置"}</h1>
           </div>
           <div className="top-actions">
             <label className="search-box">
               <Search size={18} />
-              <input aria-label="全局搜索" placeholder="搜索会员姓名或手机号" />
+              <input
+                aria-label="全局搜索"
+                placeholder="搜索会员姓名或手机号"
+                value={globalQuery}
+                onChange={(event) => {
+                  setGlobalQuery(event.target.value);
+                  if (event.target.value) setPage("members");
+                }}
+              />
               <kbd>⌘ K</kbd>
             </label>
-            <button className="icon-button" aria-label="通知">
-              <Bell size={19} />
-              <span />
-            </button>
-            <select
-              className="role-switch"
-              aria-label="切换演示角色"
-              value={role}
-              onChange={(e) => {
-                setRole(e.target.value as Role);
-                setPage("dashboard");
-              }}
+            <button
+              className="icon-button"
+              aria-label={`${dueTaskCount} 项今日及逾期待处理任务`}
+              onClick={() => setPage("today")}
             >
-              <option value="member_admin">会员中心主管</option>
-              <option value="head_nurse">护士长</option>
-              <option value="management">管理层</option>
-            </select>
+              <Bell size={19} />
+              {dueTaskCount > 0 && <span />}
+            </button>
+            {demoMode && (
+              <select
+                className="role-switch"
+                aria-label="切换演示角色"
+                value={role}
+                onChange={(e) => {
+                  setRole(e.target.value as Role);
+                  setPage("dashboard");
+                }}
+              >
+                <option value="member_admin">会员中心主管</option>
+                <option value="head_nurse">护士长</option>
+                <option value="management">管理层</option>
+              </select>
+            )}
           </div>
         </header>
         <div className="content">
@@ -242,10 +466,12 @@ function App() {
               </span>
             </div>
           )}
+          {dataLoading && <div className="demo-banner">正在同步 Supabase 数据…</div>}
           {page === "dashboard" && (
             <Dashboard
               members={members}
               tasks={tasks}
+              data={dashboardData}
               role={role}
               onNavigate={setPage}
             />
@@ -253,8 +479,19 @@ function App() {
           {page === "members" && (
             <Members
               members={members}
+              tasks={tasks}
               role={role}
-              onMembers={setMembers}
+              searchQuery={globalQuery}
+              onRefresh={refreshData}
+              notify={notify}
+            />
+          )}
+          {page === "today" && (
+            <Tasks
+              tasks={tasks}
+              role={role}
+              todayOnly
+              onRefresh={refreshData}
               notify={notify}
             />
           )}
@@ -262,21 +499,22 @@ function App() {
             <Tasks
               tasks={tasks}
               role={role}
-              onTasks={setTasks}
+              todayOnly={false}
+              onRefresh={refreshData}
               notify={notify}
             />
           )}
           {page === "visits" && (
             <Visits
               members={members}
-              tasks={tasks}
               role={role}
-              onMembers={setMembers}
-              onTasks={setTasks}
+              onRefresh={refreshData}
               notify={notify}
             />
           )}
-          {page === "import" && <ImportPage role={role} notify={notify} />}
+          {page === "import" && (
+            <ImportPage role={role} batches={importBatches} notify={notify} />
+          )}
           {page === "settings" && <SettingsPage />}
         </div>
       </main>
@@ -290,6 +528,8 @@ function App() {
 }
 
 function Login({ onLogin }: { onLogin: (role: Role) => void }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [username, setUsername] = useState("vip001");
   const [password, setPassword] = useState("Demo123!");
   const [role, setRole] = useState<Role>("member_admin");
@@ -308,7 +548,11 @@ function Login({ onLogin }: { onLogin: (role: Role) => void }) {
         await signIn(username, password);
         const profile = await getMyProfile();
         onLogin(profile.role as Role);
-      } else onLogin(role);
+      } else if (isDemoAuthEnabled) onLogin(role);
+      else throw new Error("尚未配置 Supabase，无法登录");
+      const destination =
+        (location.state as { from?: string } | null)?.from || "/";
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败");
     } finally {
@@ -343,7 +587,7 @@ function Login({ onLogin }: { onLogin: (role: Role) => void }) {
             autoComplete="current-password"
           />
         </label>
-        {!hasSupabaseConfig && (
+        {!hasSupabaseConfig && isDemoAuthEnabled && (
           <label>
             演示角色
             <select
@@ -357,13 +601,18 @@ function Login({ onLogin }: { onLogin: (role: Role) => void }) {
           </label>
         )}
         {error && <p className="form-error">{error}</p>}
-        <button className="login-button" disabled={busy}>
+        <button
+          className="login-button"
+          disabled={busy || (!hasSupabaseConfig && !isDemoAuthEnabled)}
+        >
           {busy ? "正在登录…" : "登录"}
         </button>
         <small>
           {hasSupabaseConfig
             ? "已连接 Supabase"
-            : "演示账号已预填，不连接真实会员数据"}
+            : isDemoAuthEnabled
+              ? "开发演示认证已启用，不连接真实会员数据"
+              : "请先配置 VITE_SUPABASE_URL 与 VITE_SUPABASE_PUBLISHABLE_KEY"}
         </small>
       </form>
     </div>
@@ -373,16 +622,30 @@ function Login({ onLogin }: { onLogin: (role: Role) => void }) {
 function Dashboard({
   members,
   tasks,
+  data,
   role,
   onNavigate,
 }: {
   members: Member[];
   tasks: Task[];
+  data: DashboardData;
   role: Role;
   onNavigate: (p: Page) => void;
 }) {
+  const [detail, setDetail] = useState<{
+    title: string;
+    subtitle: string;
+    members?: Member[];
+    tasks?: Task[];
+  } | null>(null);
+  const today = todayInShanghai();
+  const currentMonth = today.slice(0, 7);
   const pending = tasks.filter((t) => t.status === "pending");
-  const overdue = pending.filter((t) => t.due < "2026-10-01").length;
+  const actionable = pending.filter((t) => t.due <= today);
+  const trend = data.trend.slice(-6).map((item) => ({
+    month: `${Number(item.month.slice(5, 7))}月`,
+    visits: item.visits,
+  }));
   const levelCounts = ["V1", "V2", "V3", "V4", "V5"].map((level) => ({
     level,
     count: members.filter((m) => m.level === level).length,
@@ -399,41 +662,73 @@ function Dashboard({
           </p>
         </div>
         <div className="data-status">
-          <span /> 数据截至 09:30
+          <span /> Supabase 实时数据
         </div>
       </section>
       <section className="metrics">
         <Metric
           label="会员总数"
-          value={String(members.length)}
+          value={String(data.totalMembers)}
           note="当前有效会员"
           icon={UsersRound}
           accent="purple"
+          onClick={() =>
+            setDetail({ title: "有效会员明细", subtitle: `共 ${members.length} 名会员`, members })
+          }
         />
         <Metric
           label="本月到诊会员"
-          value="164"
-          note="较上月 +18.0%"
+          value={String(data.monthlyVisitMembers)}
+          note="本月去重到诊会员"
           icon={TrendingUp}
           accent="blue"
+          onClick={() => {
+            const rows = members.filter((member) => member.lastVisit.startsWith(currentMonth));
+            setDetail({ title: "本月到诊会员", subtitle: `${currentMonth} 去重到诊会员`, members: rows });
+          }}
         />
         <Metric
           label="服务完成率"
-          value="92.6%"
-          note="目标 95%"
+          value={`${data.serviceCompletionRate}%`}
+          note="已完成服务任务占比"
           icon={ClipboardCheck}
           accent="green"
+          onClick={() =>
+            setDetail({
+              title: "服务任务完成明细",
+              subtitle: "全部已完成或已确认任务",
+              tasks: tasks.filter((task) => ["completed", "confirmed"].includes(task.status)),
+            })
+          }
         />
         <Metric
           label="逾期任务"
-          value={String(overdue)}
+          value={String(data.overdueTasks)}
           note="需优先处理"
           icon={Clock3}
           accent="red"
+          onClick={() =>
+            setDetail({ title: "逾期任务明细", subtitle: "待处理且到期日早于今天", tasks: actionable.filter((task) => task.due < today) })
+          }
+        />
+        <Metric
+          label="V1 升级会员"
+          value={String(data.v1UpgradedMembers.length)}
+          note="已记录从 V1 升至 V2 或更高"
+          icon={TrendingUp}
+          accent="purple"
+          onClick={() => setDetail({
+            title: "V1 升级会员",
+            subtitle: "从等级变动历史统计，不等同于当前 V2+ 人数",
+            members: members.filter((member) => data.v1UpgradedMembers.includes(member.id)),
+          })}
         />
       </section>
       <section className="dashboard-grid">
-        <article className="panel">
+        <article
+          className="panel clickable-panel"
+          onClick={() => setDetail({ title: "会员等级结构", subtitle: "点击会员可在会员管理中继续查阅", members })}
+        >
           <PanelHeading title="会员结构" subtitle="当前有效会员等级分布" />
           <div className="level-list">
             {levelCounts.map((x) => (
@@ -445,7 +740,7 @@ function Dashboard({
                 <div className="level-track">
                   <i
                     style={{
-                      width: `${Math.max((x.count / members.length) * 100, 4)}%`,
+                      width: `${members.length ? Math.max((x.count / members.length) * 100, 4) : 0}%`,
                     }}
                   />
                 </div>
@@ -454,7 +749,10 @@ function Dashboard({
             ))}
           </div>
         </article>
-        <article className="panel">
+        <article
+          className="panel clickable-panel"
+          onClick={() => setDetail({ title: "会员活跃明细", subtitle: "当前会员最近一次治疗型到诊", members: members.filter((member) => member.lastVisit !== "—").sort((a, b) => b.lastVisit.localeCompare(a.lastVisit)) })}
+        >
           <PanelHeading
             title="会员活跃趋势"
             subtitle="近 6 个月去重到诊会员数"
@@ -485,7 +783,7 @@ function Dashboard({
         <div className="section-heading">
           <div>
             <h2>今日执行中心</h2>
-            <p>共 {pending.length} 项待处理任务</p>
+            <p>今日及逾期共 {actionable.length} 项待处理任务</p>
           </div>
           <button className="text-button" onClick={() => onNavigate("tasks")}>
             查看全部任务
@@ -494,53 +792,85 @@ function Dashboard({
         <div className="task-grid">
           <TaskSummary
             title="术后服务"
-            count={pending.filter((t) => t.type.includes("回访")).length}
+            count={actionable.filter((t) => t.type.includes("回访")).length}
             icon={ClipboardCheck}
+            onClick={() => setDetail({ title: "回访提醒", subtitle: "今日及逾期待处理", tasks: actionable.filter((task) => task.type.includes("回访")) })}
           />
           <TaskSummary
             title="D0 护理确认"
-            count={pending.filter((t) => t.type.includes("D0")).length}
+            count={actionable.filter((t) => t.type.includes("D0")).length}
             icon={ShieldCheck}
+            onClick={() => setDetail({ title: "D0 护理确认", subtitle: "今日及逾期待处理", tasks: actionable.filter((task) => task.type.includes("D0")) })}
           />
           <TaskSummary
             title="生日礼"
-            count={pending.filter((t) => t.type.includes("生日")).length}
+            count={actionable.filter((t) => t.type.includes("生日")).length}
             icon={Gift}
+            onClick={() => setDetail({ title: "生日月提醒", subtitle: "今日及逾期待处理", tasks: actionable.filter((task) => task.type.includes("生日")) })}
           />
           <TaskSummary
             title="权益到期提醒"
             count={
-              pending.filter(
+              actionable.filter(
                 (t) => t.type.includes("有效期") || t.type.includes("权益到期"),
               ).length
             }
             icon={CalendarDays}
+            onClick={() => setDetail({ title: "到期提醒", subtitle: "会员有效期及分享权益到期", tasks: actionable.filter((task) => task.type.includes("有效期") || task.type.includes("权益到期")) })}
           />
         </div>
       </section>
+      {detail && (
+        <aside className="drawer dashboard-detail" aria-label={detail.title}>
+          <div className="drawer-head">
+            <div><h2>{detail.title}</h2><p>{detail.subtitle}</p></div>
+            <button className="icon-button" aria-label="关闭明细" onClick={() => setDetail(null)}><X size={18} /></button>
+          </div>
+          <div className="detail-list">
+            {detail.members?.map((member) => (
+              <button key={member.id} onClick={() => onNavigate("members")}>
+                <span><strong>{member.name}</strong><small>{member.phone} · {member.level}</small></span>
+                <span>{member.lastVisit === "—" ? member.validUntil : `最近到诊 ${member.lastVisit}`}</span>
+              </button>
+            ))}
+            {detail.tasks?.map((task) => (
+              <button key={task.id} onClick={() => onNavigate("tasks")}>
+                <span><strong>{task.member}</strong><small>{task.level} · {task.type}</small></span>
+                <span className={task.status === "pending" && task.due < today ? "danger-text" : ""}>{task.due}</span>
+              </button>
+            ))}
+            {!detail.members?.length && !detail.tasks?.length && <p className="empty-state">暂无涉及记录</p>}
+          </div>
+        </aside>
+      )}
     </>
   );
 }
 
 function Members({
   members,
+  tasks,
   role,
-  onMembers,
+  searchQuery,
+  onRefresh,
   notify,
 }: {
   members: Member[];
+  tasks: Task[];
   role: Role;
-  onMembers: (m: Member[]) => void;
+  searchQuery: string;
+  onRefresh: () => Promise<void>;
   notify: (s: string) => void;
 }) {
   const [view, setView] = useState<"service" | "manage">("service");
-  const [query, setQuery] = useState("");
+  const [localQuery, setLocalQuery] = useState("");
   const [selected, setSelected] = useState<Member | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const query = searchQuery || localQuery;
   const filtered = members.filter((m) =>
-    `${m.name}${m.phone}${m.consultant}`.includes(query),
+    `${m.name}${m.phone}${m.cardNumber}${m.consultant}`.includes(query),
   );
-  const add = (e: FormEvent<HTMLFormElement>) => {
+  const add = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
     const phone = String(data.get("phone")).replace(/\D/g, "");
@@ -548,23 +878,25 @@ function Members({
       notify("手机号已存在");
       return;
     }
-    onMembers([
-      ...members,
-      {
-        id: crypto.randomUUID(),
-        name: String(data.get("name")),
-        phone,
-        consultant: String(data.get("consultant")),
-        level: String(data.get("level")) as Member["level"],
-        birthday: String(data.get("birthday")),
-        joinedOn: String(data.get("joinedOn")),
-        validUntil: String(data.get("validUntil")),
-        lastVisit: "—",
-        visits: 0,
-      },
-    ]);
-    setShowAdd(false);
-    notify("会员已创建");
+    try {
+      if (hasSupabaseConfig) {
+        await createMember({
+          name: String(data.get("name")),
+          phone,
+          consultant: String(data.get("consultant")) || null,
+          has_service_group: data.get("hasServiceGroup") === "yes",
+          level: String(data.get("level")) as Member["level"],
+          birthday: String(data.get("birthday")) || null,
+          joined_on: String(data.get("joinedOn")) || null,
+          membership_changed_on: String(data.get("membershipChangedOn")) || String(data.get("joinedOn")) || null,
+        });
+        await onRefresh();
+      }
+      setShowAdd(false);
+      notify("会员已创建");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "会员创建失败");
+    }
   };
   return (
     <>
@@ -573,7 +905,7 @@ function Members({
           <h2>会员管理</h2>
           <p>会员档案是系统唯一数据源。</p>
         </div>
-        {role === "member_admin" && (
+        {(role === "member_admin" || role === "management") && (
           <button
             className="primary-action"
             onClick={() => setShowAdd(!showAdd)}
@@ -595,7 +927,18 @@ function Members({
           </label>
           <label>
             所属咨询
-            <input name="consultant" />
+            <select name="consultant" defaultValue="" required>
+              <option value="" disabled>请选择所属咨询</option>
+              <option value="孙亚亚">孙亚亚</option>
+              <option value="马芷怡">马芷怡</option>
+            </select>
+          </label>
+          <label>
+            是否建会员服务群
+            <select name="hasServiceGroup" defaultValue="no">
+              <option value="no">否</option>
+              <option value="yes">是</option>
+            </select>
           </label>
           <label>
             等级
@@ -614,9 +957,10 @@ function Members({
             <input name="joinedOn" type="date" />
           </label>
           <label>
-            有效期
-            <input name="validUntil" type="date" />
+            会员变动日期
+            <input name="membershipChangedOn" type="date" required />
           </label>
+          <label>有效期<input value="保存后按会员变动日期自动计算 1 年" readOnly /></label>
           <button className="primary-action">保存会员</button>
         </form>
       )}
@@ -636,12 +980,14 @@ function Members({
           </button>
         </div>
         <input
-          placeholder="搜索姓名、手机号或所属咨询"
+          placeholder="搜索姓名、手机号、卡号或所属咨询"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => setLocalQuery(e.target.value)}
         />
       </div>
-      <div className={`panel data-table ${view === "manage" ? "members-manage" : ""}`}>
+      <div
+        className={`panel data-table ${view === "manage" ? "members-manage" : ""}`}
+      >
         <div className="data-row data-head">
           <span>会员</span>
           <span>等级</span>
@@ -668,7 +1014,9 @@ function Members({
           >
             <span>
               <strong>{m.name}</strong>
-              <small>{m.phone}</small>
+              <small>
+                {m.phone} · {m.cardNumber}
+              </small>
             </span>
             <span>
               <b className={`level-badge ${m.level}`}>{m.level}</b>
@@ -676,9 +1024,22 @@ function Members({
             {view === "service" ? (
               <>
                 <span>{m.lastVisit}</span>
-                <span>{m.level === "V5" ? "优先服务" : "—"}</span>
                 <span>
-                  <em className="status">正常</em>
+                  {tasks
+                    .filter((task) => task.memberId === m.id && task.status === "pending")
+                    .sort((a, b) => a.due.localeCompare(b.due))[0]?.type || "—"}
+                </span>
+                <span>
+                  <em className="status">
+                    {tasks.some(
+                      (task) =>
+                        task.memberId === m.id &&
+                        task.status === "pending" &&
+                        task.due < todayInShanghai(),
+                    )
+                      ? "有逾期"
+                      : "正常"}
+                  </em>
                 </span>
               </>
             ) : (
@@ -693,7 +1054,13 @@ function Members({
         ))}
       </div>
       {selected && (
-        <MemberDetail member={selected} onClose={() => setSelected(null)} />
+        <MemberDetail
+          member={selected}
+          role={role}
+          onRefresh={onRefresh}
+          notify={notify}
+          onClose={() => setSelected(null)}
+        />
       )}
     </>
   );
@@ -701,11 +1068,54 @@ function Members({
 
 function MemberDetail({
   member,
+  role,
+  onRefresh,
+  notify,
   onClose,
 }: {
   member: Member;
+  role: Role;
+  onRefresh: () => Promise<void>;
+  notify: (message: string) => void;
   onClose: () => void;
 }) {
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(hasSupabaseConfig);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!hasSupabaseConfig) return;
+    let active = true;
+    void getMemberTimeline(member.id)
+      .then((events) => active && setTimeline(events))
+      .finally(() => active && setTimelineLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [member.id]);
+
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    try {
+      await updateMember(member.id, {
+        name: String(data.get("name")),
+        phone: String(data.get("phone")).replace(/\D/g, ""),
+        consultant: String(data.get("consultant")) || null,
+        has_service_group: data.get("hasServiceGroup") === "yes",
+        level: String(data.get("level")) as Member["level"],
+        birthday: String(data.get("birthday")) || null,
+        joined_on: String(data.get("joinedOn")) || null,
+        membership_changed_on: String(data.get("membershipChangedOn")) || null,
+      });
+      await onRefresh();
+      notify("会员档案已更新");
+      onClose();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "会员档案更新失败");
+    }
+  };
+
   return (
     <div className="drawer">
       <div className="drawer-head">
@@ -718,7 +1128,52 @@ function MemberDetail({
           <X size={18} />
         </button>
       </div>
+      {(role === "management" || role === "member_admin") && (
+        <button className="small-action" onClick={() => setEditing(!editing)}>
+          {editing ? "取消编辑" : "编辑档案"}
+        </button>
+      )}
+      {editing && (
+        <form className="inline-form" onSubmit={save}>
+          <label>姓名<input name="name" defaultValue={member.name} required /></label>
+          <label>手机号<input name="phone" defaultValue={member.phone} required /></label>
+          <label>
+            所属咨询
+            <select name="consultant" defaultValue={member.consultant} required>
+              <option value="孙亚亚">孙亚亚</option>
+              <option value="马芷怡">马芷怡</option>
+            </select>
+          </label>
+          <label>
+            会员服务群
+            <select name="hasServiceGroup" defaultValue={member.hasServiceGroup ? "yes" : "no"}>
+              <option value="yes">已建群</option>
+              <option value="no">未建群</option>
+            </select>
+          </label>
+          <label>
+            等级
+            <select name="level" defaultValue={member.level}>
+              {(["V1", "V2", "V3", "V4", "V5"] as const).map((level) => (
+                <option key={level}>{level}</option>
+              ))}
+            </select>
+          </label>
+          <label>生日<input name="birthday" type="date" defaultValue={member.birthday === "—" ? "" : member.birthday} /></label>
+          <label>入会日期<input name="joinedOn" type="date" defaultValue={member.joinedOn === "—" ? "" : member.joinedOn} /></label>
+          <label>会员变动日期<input name="membershipChangedOn" type="date" defaultValue={member.membershipChangedOn === "—" ? "" : member.membershipChangedOn} required /></label>
+          <label>有效期<input value={member.validUntil} readOnly /></label>
+          <button className="primary-action">保存修改</button>
+        </form>
+      )}
       <div className="detail-grid">
+        <span>
+          会员卡号<strong>{member.cardNumber}</strong>
+        </span>
+        <span>
+          会员服务群
+          <strong>{member.hasServiceGroup ? "已建群" : "未建群"}</strong>
+        </span>
         <span>
           所属咨询<strong>{member.consultant || "—"}</strong>
         </span>
@@ -729,6 +1184,9 @@ function MemberDetail({
           入会日期<strong>{member.joinedOn}</strong>
         </span>
         <span>
+          会员变动日期<strong>{member.membershipChangedOn || "—"}</strong>
+        </span>
+        <span>
           有效期<strong>{member.validUntil}</strong>
         </span>
         <span>
@@ -737,22 +1195,20 @@ function MemberDetail({
       </div>
       <h3>服务时间轴</h3>
       <div className="timeline">
-        <p>
-          <i />
-          2026-10-01　D0 护理确认 · <b>待确认</b>
-        </p>
-        <p>
-          <i />
-          2026-09-28　会员到诊 · <b>已到诊</b>
-        </p>
-        <p>
-          <i />
-          2026-09-29　D1 回访 · <b>已完成</b>
-        </p>
-        <p>
-          <i />
-          2026-09-12　季度满意度问卷 · <b>已完成</b>
-        </p>
+        {timelineLoading && <p>正在加载时间轴…</p>}
+        {!timelineLoading && timeline.length === 0 && <p>暂无服务记录</p>}
+        {timeline.map((event) => (
+          <p key={`${event.event_type}-${event.source_id}`}>
+            <i />
+            {event.event_date}　
+            {event.event_type === "visit"
+              ? "会员到诊"
+              : event.event_type === "birthday_gift"
+                ? "生日礼"
+                : taskNames[event.event_type] || event.event_type}
+            {event.is_historical ? "（历史）" : ""} · <b>{event.display_status}</b>
+          </p>
+        ))}
       </div>
     </div>
   );
@@ -761,79 +1217,139 @@ function MemberDetail({
 function Tasks({
   tasks,
   role,
-  onTasks,
+  todayOnly,
+  onRefresh,
   notify,
 }: {
   tasks: Task[];
   role: Role;
-  onTasks: (t: Task[]) => void;
+  todayOnly: boolean;
+  onRefresh: () => Promise<void>;
   notify: (s: string) => void;
 }) {
-  const visible =
+  const today = todayInShanghai();
+  const roleVisible =
     role === "head_nurse" ? tasks.filter((t) => t.owner === "护士长") : tasks;
+  const visible = todayOnly
+    ? roleVisible.filter((task) => task.status === "pending" && task.due <= today)
+    : roleVisible;
   const [filter, setFilter] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const categoryOf = (task: Task) =>
+    task.type.includes("有效期")
+      ? "member_expiry"
+      : task.type.includes("权益到期")
+        ? "share_expiry"
+        : task.type.includes("生日")
+          ? "birthday"
+          : task.type.includes("回访")
+            ? "followup"
+            : task.type.includes("D0")
+              ? "care"
+              : "other";
   const shown = visible.filter(
     (t) =>
-      filter === "all" ||
-      (filter === "overdue"
-        ? t.due < "2026-10-01" && t.status === "pending"
-        : t.status === filter),
+      (category === "all" || categoryOf(t) === category) &&
+      (filter === "all" ||
+        (filter === "overdue"
+          ? t.due < today && t.status === "pending"
+          : t.status === filter)),
   );
-  const act = (task: Task) => {
-    if (role === "management") {
-      notify("管理层账号为只读");
-      return;
+  const dueVisible = visible.filter(
+    (task) => task.status === "pending" && task.due <= today,
+  );
+  const pendingShown = shown.filter((task) => task.status === "pending");
+  const allShownSelected = pendingShown.length > 0 && pendingShown.every((task) => selectedIds.includes(task.id));
+  const toggleAllShown = () => {
+    const ids = pendingShown.map((task) => task.id);
+    setSelectedIds((current) =>
+      ids.every((id) => current.includes(id))
+        ? current.filter((id) => !ids.includes(id))
+        : Array.from(new Set([...current, ...ids])),
+    );
+  };
+  const processSelected = async () => {
+    if (!selectedIds.length) return notify("请先选择待处理任务");
+    try {
+      const changed = await processTaskBatch(selectedIds);
+      setSelectedIds([]);
+      await onRefresh();
+      notify(`已批量处理 ${changed} 项任务`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "批量处理失败");
     }
-    if (task.owner === "护士长" && role !== "head_nurse") {
+  };
+  const act = async (task: Task) => {
+    if (task.owner === "护士长" && role !== "head_nurse" && role !== "management") {
       notify("D0 仅护士长可以确认");
       return;
     }
-    if (task.owner === "会员中心" && role !== "member_admin") {
+    if (task.owner === "会员中心" && role !== "member_admin" && role !== "management") {
       notify("该任务由会员中心处理");
       return;
     }
-    onTasks(
-      tasks.map((t) =>
-        t.id === task.id
-          ? {
-              ...t,
-              status: task.owner === "护士长" ? "confirmed" : "completed",
-            }
-          : t,
-      ) as Task[],
-    );
-    notify(task.owner === "护士长" ? "D0 已确认" : "任务已完成");
+    try {
+      if (task.owner === "护士长") await confirmD0([task.id]);
+      else await completeTask(task.id);
+      await onRefresh();
+      notify(task.owner === "护士长" ? "D0 已确认" : "任务已完成");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "任务处理失败");
+    }
   };
-  const confirmAll = () => {
-    onTasks(
-      tasks.map((t) =>
-        t.owner === "护士长" && t.status === "pending"
-          ? { ...t, status: "confirmed" }
-          : t,
-      ) as Task[],
-    );
-    notify("已批量确认全部待处理 D0");
+  const confirmAll = async () => {
+    const ids = tasks
+      .filter((task) => task.owner === "护士长" && task.status === "pending")
+      .map((task) => task.id);
+    if (!ids.length) return notify("没有待确认的 D0 任务");
+    try {
+      await confirmD0(ids);
+      await onRefresh();
+      notify("已批量确认全部待处理 D0");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "批量确认失败");
+    }
   };
   return (
     <>
       <section className="page-heading">
         <div>
-          <h2>{role === "head_nurse" ? "D0 护理确认" : "服务任务"}</h2>
-          <p>逾期优先，再按会员等级与到期时间排序。</p>
+          <h2>{todayOnly ? "今日待办" : role === "head_nurse" ? "D0 护理确认" : "服务任务"}</h2>
+          <p>{todayOnly ? `今天及逾期共 ${visible.length} 项，按任务分类统筹执行。` : "逾期优先，再按会员等级与到期时间排序。"}</p>
         </div>
-        {role === "head_nurse" && (
-          <button className="primary-action" onClick={confirmAll}>
-            批量确认 D0
-          </button>
-        )}
+        <div className="batch-actions">
+          {selectedIds.length > 0 && <span>已选 {selectedIds.length} 项</span>}
+          <button className="primary-action" onClick={processSelected}>批量处理所选</button>
+          {(role === "head_nurse" || role === "management") && (
+            <button className="secondary-action" onClick={confirmAll}>全部确认 D0</button>
+          )}
+        </div>
       </section>
       <div className="toolbar">
+        <div className="tabs category-tabs" aria-label="任务分类">
+          {[
+            ["all", "全部任务"],
+            ["member_expiry", "会员到期"],
+            ["share_expiry", "分享权益提醒"],
+            ["birthday", "生日月提醒"],
+            ["followup", "回访提醒"],
+            ["care", "D0 护理确认"],
+          ].map(([id, label]) => (
+            <button key={id} className={category === id ? "active" : ""} onClick={() => setCategory(id)}>
+              {label}<small>{dueVisible.filter((task) => id === "all" || categoryOf(task) === id).length}</small>
+            </button>
+          ))}
+        </div>
+      </div>
+      {!todayOnly && <div className="toolbar">
         <div className="tabs">
           {[
             ["all", "全部"],
             ["pending", "待处理"],
             ["overdue", "已逾期"],
             ["completed", "已完成"],
+            ["archived", "已归档"],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -844,9 +1360,10 @@ function Tasks({
             </button>
           ))}
         </div>
-      </div>
+      </div>}
       <div className="panel data-table task-table">
         <div className="data-row data-head">
+          <span><input type="checkbox" aria-label="选择当前列表全部待处理任务" checked={allShownSelected} onChange={toggleAllShown} /></span>
           <span>会员</span>
           <span>任务</span>
           <span>责任人</span>
@@ -856,6 +1373,16 @@ function Tasks({
         {shown.map((t) => (
           <div className="data-row" key={t.id}>
             <span>
+              {t.status === "pending" && (
+                <input
+                  type="checkbox"
+                  aria-label={`选择 ${t.member} ${t.type}`}
+                  checked={selectedIds.includes(t.id)}
+                  onChange={() => setSelectedIds((current) => current.includes(t.id) ? current.filter((id) => id !== t.id) : [...current, t.id])}
+                />
+              )}
+            </span>
+            <span>
               <strong>{t.member}</strong>
               <small>{t.level} 会员</small>
             </span>
@@ -863,7 +1390,7 @@ function Tasks({
             <span>{t.owner}</span>
             <span
               className={
-                t.status === "pending" && t.due < "2026-10-01"
+                t.status === "pending" && t.due < today
                   ? "danger-text"
                   : ""
               }
@@ -877,7 +1404,15 @@ function Tasks({
                 </button>
               ) : (
                 <em className="status">
-                  {t.status === "confirmed" ? "已确认" : "已完成"}
+                  {t.status === "confirmed"
+                    ? "已确认"
+                    : t.status === "completed"
+                      ? "已完成"
+                      : t.status === "archived"
+                        ? "已归档"
+                      : t.status === "superseded"
+                        ? "已覆盖"
+                        : "已取消"}
                 </em>
               )}
             </span>
@@ -890,71 +1425,30 @@ function Tasks({
 
 function Visits({
   members,
-  tasks,
   role,
-  onMembers,
-  onTasks,
+  onRefresh,
   notify,
 }: {
   members: Member[];
-  tasks: Task[];
   role: Role;
-  onMembers: (m: Member[]) => void;
-  onTasks: (t: Task[]) => void;
+  onRefresh: () => Promise<void>;
   notify: (s: string) => void;
 }) {
   const [phone, setPhone] = useState("");
   const member = members.find((m) => m.phone === phone.replace(/\D/g, ""));
-  const today = "2026-10-01";
-  const submit = (e: FormEvent<HTMLFormElement>) => {
+  const today = todayInShanghai();
+  const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (role !== "member_admin" || !member) return;
+    if ((role !== "member_admin" && role !== "management") || !member) return;
     const date = String(new FormData(e.currentTarget).get("date"));
-    onMembers(
-      members.map((m) =>
-        m.id === member.id
-          ? {
-              ...m,
-              lastVisit: date,
-              visits: m.visits + (date === m.lastVisit ? 0 : 1),
-            }
-          : m,
-      ),
-    );
-    const offsets = [0, 1, 3, 7, 15, 30];
-    const labels = [
-      "D0 护理确认",
-      "D1 回访",
-      "D3 回访",
-      "D7 回访",
-      "D15 回访",
-      "D30 回访",
-    ];
-    const base = new Date(`${date}T00:00:00`);
-    const fresh = offsets.map((offset, i) => {
-      const d = new Date(base);
-      d.setDate(d.getDate() + offset);
-      return {
-        id: crypto.randomUUID(),
-        memberId: member.id,
-        member: member.name,
-        level: member.level,
-        type: labels[i],
-        due: d.toISOString().slice(0, 10),
-        status: "pending" as const,
-        owner: (i === 0 ? "护士长" : "会员中心") as Task["owner"],
-      };
-    });
-    onTasks([
-      ...tasks.map((t) =>
-        t.memberId === member.id && t.status === "pending"
-          ? { ...t, status: "superseded" as const }
-          : t,
-      ),
-      ...fresh,
-    ]);
-    notify("治疗到诊与 D0–D30 服务周期已创建");
-    setPhone("");
+    try {
+      await createTreatment(member.id, date);
+      await onRefresh();
+      notify("治疗到诊与 D0–D30 服务周期已创建");
+      setPhone("");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "治疗到诊保存失败");
+    }
   };
   return (
     <>
@@ -995,7 +1489,7 @@ function Visits({
           </label>
           <button
             className="primary-action wide"
-            disabled={!member || role !== "member_admin"}
+            disabled={!member || (role !== "member_admin" && role !== "management")}
           >
             保存治疗并创建服务周期
           </button>
@@ -1014,9 +1508,11 @@ function Visits({
 
 function ImportPage({
   role,
+  batches,
   notify,
 }: {
   role: Role;
+  batches: ImportBatch[];
   notify: (s: string) => void;
 }) {
   const [result, setResult] = useState<{
@@ -1039,7 +1535,7 @@ function ImportPage({
       notify(
         missing.length
           ? "文件校验完成，存在错误"
-          : "文件校验通过，可进入导入队列",
+          : "文件预检通过",
       );
     } catch {
       setResult({
@@ -1060,18 +1556,20 @@ function ImportPage({
         <FileSpreadsheet size={34} />
         <h3>会员档案与历史治疗</h3>
         <p>
-          必填列：姓名、手机号、会员等级。支持附带所属咨询、生日、入会日期、有效期和历史治疗日期。
+          必填列：姓名、手机号、会员等级。支持附带所属咨询、是否建会员服务群、生日、入会日期、有效期和历史治疗日期。会员卡号由系统自动分配。
         </p>
         <label className="upload-button">
           选择 .xlsx 文件
           <input
             type="file"
             accept=".xlsx"
-            disabled={role !== "member_admin"}
+            disabled={role !== "member_admin" && role !== "management"}
             onChange={handle}
           />
         </label>
-        {role !== "member_admin" && <small>当前角色没有导入权限</small>}
+        {role !== "member_admin" && role !== "management" && (
+          <small>当前角色没有导入权限</small>
+        )}
         {result && (
           <div
             className={
@@ -1082,11 +1580,38 @@ function ImportPage({
             {result.errors.length ? (
               result.errors.map((x) => <p key={x}>{x}</p>)
             ) : (
-              <p>字段完整，正式环境将创建导入批次并逐行去重。</p>
+              <p>字段完整；当前页面完成预检，正式写入前仍需确认匹配与异常清单。</p>
             )}
           </div>
         )}
       </div>
+      <section className="execution-section">
+        <div className="section-heading">
+          <div>
+            <h2>最近导入记录</h2>
+            <p>来自 Supabase 的真实导入批次状态。</p>
+          </div>
+        </div>
+        <div className="panel data-table task-table">
+          <div className="data-row data-head">
+            <span>文件</span>
+            <span>状态</span>
+            <span>总行数</span>
+            <span>成功 / 失败</span>
+            <span>导入时间</span>
+          </div>
+          {batches.map((batch) => (
+            <div className="data-row" key={batch.id}>
+              <span>{batch.file_name}</span>
+              <span>{batch.status === "completed" ? "已完成" : batch.status}</span>
+              <span>{batch.total_rows}</span>
+              <span>{batch.success_rows} / {batch.failed_rows}</span>
+              <span>{batch.created_at}</span>
+            </div>
+          ))}
+          {!batches.length && <p className="panel-footnote">暂无导入记录</p>}
+        </div>
+      </section>
     </>
   );
 }
@@ -1146,22 +1671,24 @@ function Metric({
   note,
   icon: Icon,
   accent,
+  onClick,
 }: {
   label: string;
   value: string;
   note: string;
   icon: typeof UsersRound;
   accent: string;
+  onClick: () => void;
 }) {
   return (
-    <article className="metric-card">
+    <button className="metric-card" onClick={onClick}>
       <div className={`metric-icon ${accent}`}>
         <Icon size={20} />
       </div>
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{note}</small>
-    </article>
+    </button>
   );
 }
 function PanelHeading({
@@ -1184,13 +1711,15 @@ function TaskSummary({
   title,
   count,
   icon: Icon,
+  onClick,
 }: {
   title: string;
   count: number;
   icon: typeof ClipboardCheck;
+  onClick: () => void;
 }) {
   return (
-    <article className="task-card">
+    <button className="task-card" onClick={onClick}>
       <span className="task-icon violet">
         <Icon size={20} />
       </span>
@@ -1200,7 +1729,7 @@ function TaskSummary({
       </span>
       <b>{count}</b>
       <i>待处理</i>
-    </article>
+    </button>
   );
 }
 export default App;

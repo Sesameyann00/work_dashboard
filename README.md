@@ -1,6 +1,6 @@
 # 千姿薇会员管理系统
 
-React + Vite + TypeScript + Supabase 的会员服务管理系统。已实现 `plan.md` 中的 V1 页面、数据库迁移、固定角色权限、关键事务函数、定时任务、Excel 预检和验证底座。未配置 Supabase 时自动进入本地演示模式。
+React + Vite + TypeScript + Supabase 的会员服务管理系统。已实现 `plan.md` 中的 V1 页面、数据库迁移、固定角色权限、关键事务函数、定时任务、Excel 预检和验证底座。应用使用 Supabase Auth 持久会话，`/login` 之外的路由均要求有效登录和启用中的 `profiles` 账号。
 
 ## 本地运行
 
@@ -31,6 +31,8 @@ cp .env.example .env.local
 ```
 
 填写 Supabase URL 与 publishable key 后重启开发服务器。生产部署、账号创建、Cron 和恢复步骤见 `docs/operations.md`，上线验收见 `docs/acceptance-checklist.md`。
+
+如需在不连接 Supabase 时运行本地演示，可仅在本机设置 `VITE_ENABLE_DEMO_AUTH=true`。该开关受 `import.meta.env.DEV` 限制，生产构建不会启用演示认证。
 
 ## Supabase 数据库
 
