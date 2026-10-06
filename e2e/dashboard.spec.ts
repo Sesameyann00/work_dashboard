@@ -15,6 +15,8 @@ test('dashboard exposes core daily work', async ({ page }) => {
   await page.getByRole('button', { name: '会员管理' }).click()
   await expect(page.getByRole('heading', { name: '会员管理', level: 2 })).toBeVisible()
   await expect(page.getByText('林女士')).toBeVisible()
+  await page.getByRole('button', { name: '新增会员' }).click()
+  await expect(page.getByLabel('是否建档小程序')).toHaveValue('')
   await page.getByLabel('按会员等级筛选').selectOption('V5')
   await expect(page.getByText('周女士')).toBeVisible()
   await expect(page.getByText('陈女士')).toHaveCount(0)

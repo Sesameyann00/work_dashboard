@@ -6,6 +6,7 @@ export type Member = {
   phone: string;
   consultant: string;
   hasServiceGroup: boolean;
+  hasMiniProgramProfile: boolean;
   kind: "prospect" | "member";
   level: "V1" | "V2" | "V3" | "V4" | "V5";
   birthday: string;
@@ -34,6 +35,7 @@ export const demoMembers: Member[] = [
     phone: "13800000001",
     consultant: "张顾问",
     hasServiceGroup: true,
+    hasMiniProgramProfile: true,
     kind: "member",
     level: "V5",
     birthday: "1988-10-08",
@@ -49,6 +51,7 @@ export const demoMembers: Member[] = [
     phone: "13800000002",
     consultant: "李顾问",
     hasServiceGroup: true,
+    hasMiniProgramProfile: true,
     kind: "member",
     level: "V4",
     birthday: "1991-04-16",
@@ -64,6 +67,7 @@ export const demoMembers: Member[] = [
     phone: "13800000003",
     consultant: "张顾问",
     hasServiceGroup: false,
+    hasMiniProgramProfile: true,
     kind: "member",
     level: "V5",
     birthday: "1985-12-03",
@@ -79,6 +83,7 @@ export const demoMembers: Member[] = [
     phone: "13800000004",
     consultant: "王顾问",
     hasServiceGroup: true,
+    hasMiniProgramProfile: true,
     kind: "member",
     level: "V3",
     birthday: "1994-10-21",
@@ -94,6 +99,7 @@ export const demoMembers: Member[] = [
     phone: "13800000005",
     consultant: "李顾问",
     hasServiceGroup: false,
+    hasMiniProgramProfile: true,
     kind: "member",
     level: "V2",
     birthday: "1990-07-11",

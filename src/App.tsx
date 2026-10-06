@@ -126,6 +126,7 @@ function mapMember(row: MemberRow): Member {
     phone: row.phone,
     consultant: row.consultant || "",
     hasServiceGroup: row.has_service_group,
+    hasMiniProgramProfile: row.has_mini_program_profile,
     kind: row.member_kind,
     level: row.level,
     birthday: displayDate(row.birthday),
@@ -909,6 +910,7 @@ function Members({
           phone,
           consultant: String(data.get("consultant")) || null,
           has_service_group: data.get("hasServiceGroup") === "yes",
+          has_mini_program_profile: data.get("hasMiniProgramProfile") === "yes",
           member_kind: String(data.get("memberKind")) as Member["kind"],
           level: String(data.get("level")) as Member["level"],
           birthday: String(data.get("birthday")) || null,
@@ -963,6 +965,14 @@ function Members({
             <select name="hasServiceGroup" defaultValue="no">
               <option value="no">否</option>
               <option value="yes">是</option>
+            </select>
+          </label>
+          <label>
+            是否建档小程序
+            <select name="hasMiniProgramProfile" defaultValue="" required>
+              <option value="" disabled>请选择</option>
+              <option value="yes">是</option>
+              <option value="no">否</option>
             </select>
           </label>
           <label>
@@ -1161,6 +1171,7 @@ function MemberDetail({
         phone: String(data.get("phone")).replace(/\D/g, ""),
         consultant: String(data.get("consultant")) || null,
         has_service_group: data.get("hasServiceGroup") === "yes",
+        has_mini_program_profile: data.get("hasMiniProgramProfile") === "yes",
         member_kind: String(data.get("memberKind")) as Member["kind"],
         level: String(data.get("level")) as Member["level"],
         birthday: String(data.get("birthday")) || null,
@@ -1213,6 +1224,13 @@ function MemberDetail({
             </select>
           </label>
           <label>
+            建档小程序
+            <select name="hasMiniProgramProfile" defaultValue={member.hasMiniProgramProfile ? "yes" : "no"} required>
+              <option value="yes">是</option>
+              <option value="no">否</option>
+            </select>
+          </label>
+          <label>
             档案类型
             <select name="memberKind" defaultValue={member.kind}>
               <option value="prospect">准会员</option>
@@ -1244,6 +1262,10 @@ function MemberDetail({
         <span>
           会员服务群
           <strong>{member.hasServiceGroup ? "已建群" : "未建群"}</strong>
+        </span>
+        <span>
+          建档小程序
+          <strong>{member.hasMiniProgramProfile ? "是" : "否"}</strong>
         </span>
         <span>
           所属咨询<strong>{member.consultant || "—"}</strong>
@@ -1616,7 +1638,7 @@ function ImportPage({
         <FileSpreadsheet size={34} />
         <h3>会员档案与历史治疗</h3>
         <p>
-          必填列：姓名、手机号、会员等级。支持附带所属咨询、是否建会员服务群、生日、入会日期、有效期和历史治疗日期。会员卡号由系统自动分配。
+          必填列：姓名、手机号、会员等级。支持附带所属咨询、是否建会员服务群、是否建档小程序、生日、入会日期、有效期和历史治疗日期。会员卡号由系统自动分配。
         </p>
         <label className="upload-button">
           选择 .xlsx 文件

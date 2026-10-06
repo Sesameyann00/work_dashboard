@@ -8,6 +8,7 @@ export type MemberRow = {
   phone: string
   consultant: string | null
   has_service_group: boolean
+  has_mini_program_profile: boolean
   member_kind: 'prospect' | 'member'
   level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
   birthday: string | null
@@ -133,6 +134,7 @@ export async function createMember(input: {
   phone: string
   consultant: string | null
   has_service_group: boolean
+  has_mini_program_profile: boolean
   member_kind: 'prospect' | 'member'
   level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
   birthday: string | null
@@ -155,6 +157,7 @@ export async function updateMember(memberId: string, input: {
   phone: string
   consultant: string | null
   has_service_group: boolean
+  has_mini_program_profile: boolean
   member_kind: 'prospect' | 'member'
   level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
   birthday: string | null
