@@ -47,4 +47,16 @@ describe('Dashboard', () => {
     expect(screen.queryByRole('button', { name: '数据导入' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '批量处理所选' })).not.toBeInTheDocument()
   })
+
+  it('filters the member list by creation time', () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
+    fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    fireEvent.click(screen.getByRole('button', { name: '会员管理' }))
+    fireEvent.change(screen.getByLabelText('按新增时间筛选'), { target: { value: 'today' } })
+    expect(screen.getByText('林女士')).toBeInTheDocument()
+    expect(screen.queryByText('陈女士')).not.toBeInTheDocument()
+  })
 })

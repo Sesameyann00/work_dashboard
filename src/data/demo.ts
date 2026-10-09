@@ -15,6 +15,7 @@ export type Member = {
   validUntil: string;
   lastVisit: string;
   visits: number;
+  createdAt?: string;
 };
 export type Task = {
   id: string;
@@ -44,6 +45,7 @@ export const demoMembers: Member[] = [
     validUntil: "2027-03-11",
     lastVisit: "2026-09-28",
     visits: 18,
+    createdAt: "2026-10-09T01:00:00+00:00",
   },
   {
     id: "m2",
@@ -59,6 +61,7 @@ export const demoMembers: Member[] = [
     validUntil: "2027-01-07",
     lastVisit: "2026-10-01",
     visits: 12,
+    createdAt: "2026-10-05T01:00:00+00:00",
   },
   {
     id: "m3",
@@ -74,6 +77,7 @@ export const demoMembers: Member[] = [
     validUntil: "2026-10-01",
     lastVisit: "2026-10-01",
     visits: 26,
+    createdAt: "2026-09-20T01:00:00+00:00",
   },
   {
     id: "m4",
@@ -89,6 +93,7 @@ export const demoMembers: Member[] = [
     validUntil: "2027-02-16",
     lastVisit: "2026-09-30",
     visits: 7,
+    createdAt: "2026-08-01T01:00:00+00:00",
   },
   {
     id: "m5",
@@ -104,6 +109,7 @@ export const demoMembers: Member[] = [
     validUntil: "2026-12-31",
     lastVisit: "2026-09-18",
     visits: 4,
+    createdAt: "2025-06-01T01:00:00+00:00",
   },
 ];
 

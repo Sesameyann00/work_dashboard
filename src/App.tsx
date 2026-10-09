@@ -31,7 +31,10 @@ import {
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -120,6 +123,31 @@ function displayDate(date: string | null | undefined) {
   return date || "—";
 }
 
+function dateInShanghai(date: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(date));
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
+function calendarDay(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+}
+
+function matchesCreatedRange(member: Member, range: "all" | "today" | "week" | "month") {
+  if (range === "all") return true;
+  if (!member.createdAt) return false;
+  const ageInDays = calendarDay(todayInShanghai()) - calendarDay(dateInShanghai(member.createdAt));
+  if (range === "today") return ageInDays === 0;
+  if (range === "week") return ageInDays >= 0 && ageInDays <= 6;
+  return ageInDays >= 0 && ageInDays <= 29;
+}
+
 function mapMember(row: MemberRow): Member {
   return {
     id: row.id,
@@ -137,6 +165,7 @@ function mapMember(row: MemberRow): Member {
     validUntil: displayDate(row.valid_until),
     lastVisit: displayDate(row.last_visit_date),
     visits: row.visit_count,
+    createdAt: row.created_at,
   };
 }
 
@@ -682,7 +711,6 @@ function Dashboard({
     level,
     count: data.levelVisitCounts.find((item) => item.level === level)?.visits ?? 0,
   }));
-  const maxLevelVisits = Math.max(...levelVisitCounts.map((item) => item.count), 1);
   return (
     <>
       <section className="intro-row">
@@ -767,23 +795,18 @@ function Dashboard({
           })}
         >
           <PanelHeading title="本月各级会员到诊量" subtitle="按当前会员等级去重统计" />
-          <div className="level-list">
-            {levelVisitCounts.map((x) => (
-              <div className="level-row" key={x.level}>
-                <div className="level-name">
-                  <span />
-                  {x.level}
-                </div>
-                <div className="level-track">
-                  <i
-                    style={{
-                      width: `${x.count ? Math.max((x.count / maxLevelVisits) * 100, 4) : 0}%`,
-                    }}
-                  />
-                </div>
-                <strong>{x.count}</strong>
-              </div>
-            ))}
+          <div className="level-chart" aria-label="本月各级会员到诊量柱状图">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={levelVisitCounts} margin={{ top: 22, right: 10, left: -24, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#eceaf0" />
+                <XAxis dataKey="level" axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: "#f7f4fa" }} formatter={(value) => [`${value} 人`, "到诊会员"]} />
+                <Bar dataKey="count" name="到诊会员" fill="#6f5298" radius={[7, 7, 0, 0]} maxBarSize={48}>
+                  <LabelList dataKey="count" position="top" fill="#332e38" fontSize={12} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </article>
         <article
@@ -903,6 +926,7 @@ function Members({
   const [memberScope, setMemberScope] = useState<"all" | "member" | "prospect">("all");
   const [levelFilter, setLevelFilter] = useState<"all" | Member["level"]>("all");
   const [visitSort, setVisitSort] = useState<"default" | "asc" | "desc">("default");
+  const [createdRange, setCreatedRange] = useState<"all" | "today" | "week" | "month">("all");
   const [localQuery, setLocalQuery] = useState("");
   const [selected, setSelected] = useState<Member | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -912,6 +936,7 @@ function Members({
     .filter((m) =>
       (memberScope === "all" || m.kind === memberScope) &&
       (levelFilter === "all" || (m.kind === "member" && m.level === levelFilter)) &&
+      matchesCreatedRange(m, createdRange) &&
       `${m.name}${m.cardNumber}${m.consultant}`.includes(query),
     )
     .sort((a, b) => {
@@ -1057,6 +1082,15 @@ function Members({
           </select>
         </label>
         <label className="toolbar-select">
+          <span>新增时间</span>
+          <select aria-label="按新增时间筛选" value={createdRange} onChange={(event) => setCreatedRange(event.target.value as "all" | "today" | "week" | "month")}>
+            <option value="all">全部时间</option>
+            <option value="today">今日新增</option>
+            <option value="week">近一周新增</option>
+            <option value="month">近一月新增</option>
+          </select>
+        </label>
+        <label className="toolbar-select">
           <span>到诊次数</span>
           <select aria-label="按到诊次数排序" value={visitSort} onChange={(event) => setVisitSort(event.target.value as "default" | "asc" | "desc")}>
             <option value="default">默认排序</option>
@@ -1085,6 +1119,7 @@ function Members({
           ) : (
             <>
               <span>所属咨询</span>
+              <span>新增日期</span>
               <span>有效期</span>
               <span>最近到诊</span>
               <span>到诊次数</span>
@@ -1132,6 +1167,7 @@ function Members({
             ) : (
               <>
                 <span>{m.consultant || "—"}</span>
+                <span>{m.createdAt ? dateInShanghai(m.createdAt) : "—"}</span>
                 <span>{m.validUntil}</span>
                 <span>{m.lastVisit}</span>
                 <span>{m.visits}</span>

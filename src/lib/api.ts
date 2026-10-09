@@ -17,6 +17,7 @@ export type MemberRow = {
   valid_until: string | null
   last_visit_date: string | null
   visit_count: number
+  created_at: string
 }
 
 export type DashboardData = {
