@@ -1119,7 +1119,7 @@ function Members({
           ) : (
             <>
               <span>所属咨询</span>
-              <span>新增日期</span>
+              <span>会员变动日期</span>
               <span>有效期</span>
               <span>最近到诊</span>
               <span>到诊次数</span>
@@ -1167,7 +1167,7 @@ function Members({
             ) : (
               <>
                 <span>{m.consultant || "—"}</span>
-                <span>{m.createdAt ? dateInShanghai(m.createdAt) : "—"}</span>
+                <span>{m.membershipChangedOn || "—"}</span>
                 <span>{m.validUntil}</span>
                 <span>{m.lastVisit}</span>
                 <span>{m.visits}</span>
