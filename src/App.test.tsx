@@ -8,7 +8,7 @@ describe('Dashboard', () => {
   it('renders the primary operating sections', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: '登录系统' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: 'vip001' } })
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '001' } })
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
     fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
@@ -21,6 +21,16 @@ describe('Dashboard', () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('登录名'), { target: { value: 'vip001' } })
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    expect(screen.queryByRole('button', { name: '经营首页' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '今日待办', level: 2 })).toBeInTheDocument()
+  })
+
+  it('hides the operating dashboard from management account 004', () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '004' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
+    fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
     expect(screen.queryByRole('button', { name: '经营首页' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '今日待办', level: 2 })).toBeInTheDocument()

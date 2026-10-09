@@ -175,6 +175,7 @@ function AuthRoutes() {
     "loading" | "authenticated" | "anonymous"
   >(hasSupabaseConfig ? "loading" : "anonymous");
   const [role, setRole] = useState<Role>("member_admin");
+  const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("演示账号");
 
   useEffect(() => {
@@ -185,6 +186,7 @@ function AuthRoutes() {
         if (!active) return;
       if (profile) {
         setRole(profile.role as Role);
+        setUsername(profile.username);
         setDisplayName(profile.display_name);
         setAuthState("authenticated");
         } else setAuthState("anonymous");
@@ -196,6 +198,7 @@ function AuthRoutes() {
         .then((profile) => {
         if (!active) return;
         setRole(profile.role as Role);
+        setUsername(profile.username);
         setDisplayName(profile.display_name);
         setAuthState("authenticated");
         })
@@ -222,8 +225,9 @@ function AuthRoutes() {
             <Navigate to="/" replace />
           ) : (
             <Login
-              onLogin={(nextRole) => {
+              onLogin={(nextRole, nextUsername) => {
                 setRole(nextRole);
+                setUsername(nextUsername);
                 setAuthState("authenticated");
               }}
             />
@@ -236,6 +240,7 @@ function AuthRoutes() {
           authState === "authenticated" ? (
             <Workspace
               initialRole={role}
+              username={username}
               displayName={displayName}
               onSignedOut={() => setAuthState("anonymous")}
             />
@@ -255,15 +260,18 @@ function RequireLogin() {
 
 function Workspace({
   initialRole,
+  username,
   displayName,
   onSignedOut,
 }: {
   initialRole: Role;
+  username: string;
   displayName: string;
   onSignedOut: () => void;
 }) {
   const [role, setRole] = useState<Role>(initialRole);
-  const [page, setPage] = useState<Page>(initialRole === "management" ? "dashboard" : "today");
+  const canViewDashboard = username.trim().toLowerCase() === "001";
+  const [page, setPage] = useState<Page>(canViewDashboard ? "dashboard" : "today");
   const demoMode = isDemoAuthEnabled && !hasSupabaseConfig;
   const [members, setMembers] = useState<Member[]>(demoMode ? demoMembers : []);
   const [tasks, setTasks] = useState<Task[]>(demoMode ? demoTasks : []);
@@ -298,7 +306,7 @@ function Workspace({
       const [memberRows, taskRows, metrics, batches] = await Promise.all([
         listMembers(),
         listTasks(),
-        role === "management" ? getDashboardData() : Promise.resolve(null),
+        canViewDashboard ? getDashboardData() : Promise.resolve(null),
         listImportBatches(),
       ]);
       setMembers(memberRows.map(mapMember));
@@ -317,7 +325,7 @@ function Workspace({
     } finally {
       setDataLoading(false);
     }
-  }, [role]);
+  }, [canViewDashboard]);
 
   useEffect(() => {
     queueMicrotask(() => void refreshData());
@@ -341,7 +349,7 @@ function Workspace({
     { id: "visits" as Page, label: "治疗到诊", icon: CalendarDays },
     { id: "import" as Page, label: "数据导入", icon: FileSpreadsheet },
   ].filter((item) =>
-    (item.id !== "dashboard" || role === "management") &&
+    (item.id !== "dashboard" || canViewDashboard) &&
     (role !== "head_nurse" || ["today", "tasks"].includes(item.id)),
   );
 
@@ -483,7 +491,7 @@ function Workspace({
             </div>
           )}
           {dataLoading && <div className="demo-banner">正在同步 Supabase 数据…</div>}
-          {page === "dashboard" && role === "management" && (
+          {page === "dashboard" && canViewDashboard && (
             <Dashboard
               members={members}
               tasks={tasks}
@@ -543,7 +551,7 @@ function Workspace({
   );
 }
 
-function Login({ onLogin }: { onLogin: (role: Role) => void }) {
+function Login({ onLogin }: { onLogin: (role: Role, username: string) => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState("");
@@ -563,8 +571,8 @@ function Login({ onLogin }: { onLogin: (role: Role) => void }) {
       if (hasSupabaseConfig) {
         await signIn(username, password);
         const profile = await getMyProfile();
-        onLogin(profile.role as Role);
-      } else if (isDemoAuthEnabled) onLogin(role);
+        onLogin(profile.role as Role, profile.username);
+      } else if (isDemoAuthEnabled) onLogin(role, username.trim().toLowerCase());
       else throw new Error("尚未配置 Supabase，无法登录");
       const destination =
         (location.state as { from?: string } | null)?.from || "/";
