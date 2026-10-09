@@ -1,0 +1,13 @@
+{
+  "name": "sync-supabase-member",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synchronize Supabase member changes to CloudBase PostgreSQL.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@cloudbase/js-sdk": "^3.10.1"
+  }
+}
