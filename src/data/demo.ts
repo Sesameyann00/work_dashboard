@@ -2,8 +2,8 @@ export type Role = "management" | "member_admin" | "head_nurse";
 export type Member = {
   id: string;
   cardNumber: string;
+  sourceCardNumber?: string | null;
   name: string;
-  phone: string;
   consultant: string;
   hasServiceGroup: boolean;
   hasMiniProgramProfile: boolean;
@@ -21,10 +21,12 @@ export type Task = {
   memberId: string;
   member: string;
   level: string;
+  taskType: string;
   type: string;
   due: string;
   status: "pending" | "completed" | "confirmed" | "superseded" | "cancelled" | "archived";
-  owner: "会员中心" | "护士长";
+  owner: string;
+  responsibilityRole: "member_admin" | "head_nurse";
 };
 
 export const demoMembers: Member[] = [
@@ -32,7 +34,6 @@ export const demoMembers: Member[] = [
     id: "m1",
     cardNumber: "QZW5831047296",
     name: "林女士",
-    phone: "13800000001",
     consultant: "张顾问",
     hasServiceGroup: true,
     hasMiniProgramProfile: true,
@@ -48,7 +49,6 @@ export const demoMembers: Member[] = [
     id: "m2",
     cardNumber: "QZW2719460358",
     name: "陈女士",
-    phone: "13800000002",
     consultant: "李顾问",
     hasServiceGroup: true,
     hasMiniProgramProfile: true,
@@ -64,7 +64,6 @@ export const demoMembers: Member[] = [
     id: "m3",
     cardNumber: "QZW8043175629",
     name: "周女士",
-    phone: "13800000003",
     consultant: "张顾问",
     hasServiceGroup: false,
     hasMiniProgramProfile: true,
@@ -80,7 +79,6 @@ export const demoMembers: Member[] = [
     id: "m4",
     cardNumber: "QZW4196827503",
     name: "王女士",
-    phone: "13800000004",
     consultant: "王顾问",
     hasServiceGroup: true,
     hasMiniProgramProfile: true,
@@ -96,7 +94,6 @@ export const demoMembers: Member[] = [
     id: "m5",
     cardNumber: "QZW9362051847",
     name: "赵女士",
-    phone: "13800000005",
     consultant: "李顾问",
     hasServiceGroup: false,
     hasMiniProgramProfile: true,
@@ -123,49 +120,59 @@ export const demoTasks: Task[] = [
     memberId: "m1",
     member: "林女士",
     level: "V5",
+    taskType: "followup_d3",
     type: "D3 回访",
     due: "2026-09-30",
     status: "pending",
-    owner: "会员中心",
+    owner: "张顾问",
+    responsibilityRole: "member_admin",
   },
   {
     id: "t2",
     memberId: "m2",
     member: "陈女士",
     level: "V4",
+    taskType: "care_d0",
     type: "D0 护理确认",
     due: "2026-10-01",
     status: "pending",
     owner: "护士长",
+    responsibilityRole: "head_nurse",
   },
   {
     id: "t3",
     memberId: "m3",
     member: "周女士",
     level: "V5",
+    taskType: "validity_7d",
     type: "有效期提醒",
     due: "2026-10-01",
     status: "pending",
-    owner: "会员中心",
+    owner: "张顾问",
+    responsibilityRole: "member_admin",
   },
   {
     id: "t4",
     memberId: "m4",
     member: "王女士",
     level: "V3",
+    taskType: "birthday_notify",
     type: "生日礼告知",
     due: "2026-10-01",
     status: "pending",
     owner: "会员中心",
+    responsibilityRole: "member_admin",
   },
   {
     id: "t5",
     memberId: "m5",
     member: "赵女士",
     level: "V2",
+    taskType: "share_benefit_7d",
     type: "分享权益剩余 7 天提醒",
     due: "2025-09-01",
     status: "pending",
     owner: "会员中心",
+    responsibilityRole: "member_admin",
   },
 ];

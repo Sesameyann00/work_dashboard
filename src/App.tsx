@@ -65,6 +65,7 @@ import {
   type ImportBatch,
   type MemberRow,
   type TimelineEvent,
+  syncMemberCardNumbers,
   updateMember,
 } from "./lib/api";
 import "./App.css";
@@ -122,8 +123,8 @@ function mapMember(row: MemberRow): Member {
   return {
     id: row.id,
     cardNumber: row.source_card_number || row.member_card_number,
+    sourceCardNumber: row.source_card_number,
     name: row.name,
-    phone: row.phone,
     consultant: row.consultant || "",
     hasServiceGroup: row.has_service_group,
     hasMiniProgramProfile: row.has_mini_program_profile,
@@ -139,17 +140,25 @@ function mapMember(row: MemberRow): Member {
 }
 
 function mapTask(row: Record<string, unknown>): Task {
-  const member = row.members as { name?: string; level?: string; member_kind?: string } | null;
+  const member = row.members as { name?: string; level?: string; member_kind?: string; consultant?: string | null } | null;
   const taskType = String(row.task_type);
+  const isCareTask = taskType === "care_d0";
+  const belongsToConsultant = taskType.startsWith("followup_") || taskType.startsWith("validity_");
   return {
     id: String(row.id),
     memberId: String(row.member_id),
     member: member?.name || "未知会员",
     level: member?.member_kind === "prospect" ? "准会员" : member?.level || "—",
+    taskType,
     type: taskNames[taskType] || taskType,
     due: String(row.due_date),
     status: row.status as Task["status"],
-    owner: taskType === "care_d0" ? "护士长" : "会员中心",
+    owner: isCareTask
+      ? "护士长"
+      : belongsToConsultant
+        ? member?.consultant || "未分配咨询"
+        : "会员中心",
+    responsibilityRole: isCareTask ? "head_nurse" : "member_admin",
   };
 }
 
@@ -430,7 +439,7 @@ function Workspace({
               <Search size={18} />
               <input
                 aria-label="全局搜索"
-                placeholder="搜索会员姓名或手机号"
+                placeholder="搜索会员姓名或卡号"
                 value={globalQuery}
                 onChange={(event) => {
                   setGlobalQuery(event.target.value);
@@ -843,7 +852,7 @@ function Dashboard({
           <div className="detail-list">
             {detail.members?.map((member) => (
               <button key={member.id} onClick={() => onNavigate("members")}>
-                <span><strong>{member.name}</strong><small>{member.phone} · {member.kind === "prospect" ? "准会员" : member.level}</small></span>
+                <span><strong>{member.name}</strong><small>{member.cardNumber} · {member.kind === "prospect" ? "准会员" : member.level}</small></span>
                 <span>{member.lastVisit === "—" ? member.validUntil : `最近到诊 ${member.lastVisit}`}</span>
               </button>
             ))}
@@ -888,7 +897,7 @@ function Members({
     .filter((m) =>
       (memberScope === "all" || m.kind === memberScope) &&
       (levelFilter === "all" || (m.kind === "member" && m.level === levelFilter)) &&
-      `${m.name}${m.phone}${m.cardNumber}${m.consultant}`.includes(query),
+      `${m.name}${m.cardNumber}${m.consultant}`.includes(query),
     )
     .sort((a, b) => {
       if (visitSort === "asc") return a.visits - b.visits || a.name.localeCompare(b.name, "zh-CN");
@@ -898,16 +907,16 @@ function Members({
   const add = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    const phone = String(data.get("phone")).replace(/\D/g, "");
-    if (members.some((m) => m.phone === phone)) {
-      notify("手机号已存在");
+    const sourceCardNumber = String(data.get("sourceCardNumber")).trim().toUpperCase();
+    if (members.some((m) => m.cardNumber.toUpperCase() === sourceCardNumber)) {
+      notify("会员卡号已存在");
       return;
     }
     try {
       if (hasSupabaseConfig) {
         await createMember({
           name: String(data.get("name")),
-          phone,
+          source_card_number: sourceCardNumber,
           consultant: String(data.get("consultant")) || null,
           has_service_group: data.get("hasServiceGroup") === "yes",
           has_mini_program_profile: data.get("hasMiniProgramProfile") === "yes",
@@ -949,8 +958,8 @@ function Members({
             <input name="name" required />
           </label>
           <label>
-            手机号
-            <input name="phone" required pattern="[0-9 +()-]{7,20}" />
+            会员卡号
+            <input name="sourceCardNumber" required placeholder="请输入原始会员卡号" />
           </label>
           <label>
             所属咨询
@@ -1046,7 +1055,7 @@ function Members({
           </select>
         </label>
         <input
-          placeholder="搜索姓名、手机号、卡号或所属咨询"
+          placeholder="搜索姓名、卡号或所属咨询"
           value={query}
           onChange={(e) => setLocalQuery(e.target.value)}
         />
@@ -1081,7 +1090,7 @@ function Members({
             <span>
               <strong>{m.name}</strong>
               <small>
-                {m.phone} · {m.cardNumber}
+                {m.cardNumber}
               </small>
             </span>
             <span>
@@ -1168,7 +1177,7 @@ function MemberDetail({
     try {
       await updateMember(member.id, {
         name: String(data.get("name")),
-        phone: String(data.get("phone")).replace(/\D/g, ""),
+        source_card_number: String(data.get("sourceCardNumber")).trim().toUpperCase() || null,
         consultant: String(data.get("consultant")) || null,
         has_service_group: data.get("hasServiceGroup") === "yes",
         has_mini_program_profile: data.get("hasMiniProgramProfile") === "yes",
@@ -1194,7 +1203,7 @@ function MemberDetail({
             {member.kind === "prospect" ? "准会员" : member.level}
           </span>
           <h2>{member.name}</h2>
-          <p>{member.phone}</p>
+          <p>{member.cardNumber}</p>
         </div>
         <button className="icon-button" onClick={onClose}>
           <X size={18} />
@@ -1208,7 +1217,7 @@ function MemberDetail({
       {editing && (
         <form className="inline-form" onSubmit={save}>
           <label>姓名<input name="name" defaultValue={member.name} required /></label>
-          <label>手机号<input name="phone" defaultValue={member.phone} required /></label>
+          <label>会员卡号<input name="sourceCardNumber" defaultValue={member.sourceCardNumber || ""} placeholder="请输入原始会员卡号" /></label>
           <label>
             所属咨询
             <select name="consultant" defaultValue={member.consultant} required>
@@ -1322,7 +1331,7 @@ function Tasks({
 }) {
   const today = todayInShanghai();
   const roleVisible =
-    role === "head_nurse" ? tasks.filter((t) => t.owner === "护士长") : tasks;
+    role === "head_nurse" ? tasks.filter((t) => t.responsibilityRole === "head_nurse") : tasks;
   const visible = todayOnly
     ? roleVisible.filter((task) => task.status === "pending" && task.due <= today)
     : roleVisible;
@@ -1375,19 +1384,19 @@ function Tasks({
     }
   };
   const act = async (task: Task) => {
-    if (task.owner === "护士长" && role !== "head_nurse" && role !== "management") {
+    if (task.responsibilityRole === "head_nurse" && role !== "head_nurse" && role !== "management") {
       notify("D0 仅护士长可以确认");
       return;
     }
-    if (task.owner === "会员中心" && role !== "member_admin" && role !== "management") {
+    if (task.responsibilityRole === "member_admin" && role !== "member_admin" && role !== "management") {
       notify("该任务由会员中心处理");
       return;
     }
     try {
-      if (task.owner === "护士长") await confirmD0([task.id]);
+      if (task.responsibilityRole === "head_nurse") await confirmD0([task.id]);
       else await completeTask(task.id);
       await onRefresh();
-      notify(task.owner === "护士长" ? "D0 已确认" : "任务已完成");
+      notify(task.responsibilityRole === "head_nurse" ? "D0 已确认" : "任务已完成");
     } catch (error) {
       notify(error instanceof Error ? error.message : "任务处理失败");
     }
@@ -1482,7 +1491,7 @@ function Tasks({
             <span>
               {t.status === "pending" ? (
                 <button className="small-action" onClick={() => act(t)}>
-                  {t.owner === "护士长" ? "确认" : "完成"}
+                  {t.responsibilityRole === "head_nurse" ? "确认" : "完成"}
                 </button>
               ) : (
                 <em className="status">
@@ -1516,8 +1525,9 @@ function Visits({
   onRefresh: () => Promise<void>;
   notify: (s: string) => void;
 }) {
-  const [phone, setPhone] = useState("");
-  const member = members.find((m) => m.phone === phone.replace(/\D/g, ""));
+  const [cardNumber, setCardNumber] = useState("");
+  const normalizedCardNumber = cardNumber.trim().toUpperCase();
+  const member = members.find((m) => m.cardNumber.toUpperCase() === normalizedCardNumber);
   const today = todayInShanghai();
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1527,7 +1537,7 @@ function Visits({
       await createTreatment(member.id, date);
       await onRefresh();
       notify("治疗到诊与 D0–D30 服务周期已创建");
-      setPhone("");
+      setCardNumber("");
     } catch (error) {
       notify(error instanceof Error ? error.message : "治疗到诊保存失败");
     }
@@ -1543,15 +1553,15 @@ function Visits({
       <div className="operation-grid">
         <form className="panel operation-card" onSubmit={submit}>
           <label>
-            会员手机号
+            会员卡号
             <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="输入完整手机号"
+              value={cardNumber}
+              onChange={(e) => setCardNumber(e.target.value)}
+              placeholder="输入完整会员卡号"
               required
             />
           </label>
-          {phone && (
+          {cardNumber && (
             <div className={member ? "match-card" : "match-card error"}>
               {member ? (
                 <>
@@ -1561,7 +1571,7 @@ function Visits({
                   </span>
                 </>
               ) : (
-                <>未找到会员，请先建立会员档案</>
+                <>未找到该会员卡号，请先补齐会员档案</>
               )}
             </div>
           )}
@@ -1600,19 +1610,52 @@ function ImportPage({
   const [result, setResult] = useState<{
     rows: number;
     errors: string[];
+    summary?: string;
   } | null>(null);
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const { default: readXlsxFile } = await import("read-excel-file");
-      const rows = await readXlsxFile(file);
+      const workbook = await readXlsxFile(file);
+      const rows = Array.isArray(workbook[0]) ? workbook : (workbook[0] as unknown as { data: unknown[][] })?.data;
+      if (!rows?.length) throw new Error("工作表为空");
       const headers = rows[0]?.map(String) || [];
-      const required = ["姓名", "手机号", "会员等级"];
+      const officialExport = headers.includes("会员姓名") && headers.includes("手机");
+      const required = officialExport
+        ? ["会员卡号", "会员姓名", "手机"]
+        : ["会员卡号", "姓名", "会员等级"];
       const missing = required.filter((x) => !headers.includes(x));
+      if (missing.length) {
+        setResult({ rows: Math.max(rows.length - 1, 0), errors: missing.map((x) => `缺少必填列：${x}`) });
+        notify("文件校验完成，存在错误");
+        return;
+      }
+      if (officialExport) {
+        const column = (name: string) => headers.indexOf(name);
+        const entries = rows.slice(1).map((row) => ({
+          cardNumber: String(row[column("会员卡号")] ?? "").trim(),
+          name: String(row[column("会员姓名")] ?? "").trim(),
+          phone: String(row[column("手机")] ?? "").trim(),
+          consultant: String(row[column("所属顾问")] ?? "").trim(),
+          joinedOn: String(row[column("入会时间")] ?? "").slice(0, 10),
+        })).filter((entry) => entry.cardNumber && entry.name);
+        const sync = await syncMemberCardNumbers(entries);
+        const exceptions = [
+          ...sync.unmatched.map((item) => `未匹配：${item}`),
+          ...sync.ambiguous.map((item) => `待人工确认：${item}`),
+        ];
+        setResult({
+          rows: sync.sourceRows,
+          errors: exceptions,
+          summary: `匹配 ${sync.matched} 人；更新 ${sync.updated} 人；原卡号已一致 ${sync.unchanged} 人`,
+        });
+        notify(`会员卡号同步完成：已更新 ${sync.updated} 人`);
+        return;
+      }
       setResult({
         rows: Math.max(rows.length - 1, 0),
-        errors: missing.map((x) => `缺少必填列：${x}`),
+        errors: [],
       });
       notify(
         missing.length
@@ -1638,7 +1681,7 @@ function ImportPage({
         <FileSpreadsheet size={34} />
         <h3>会员档案与历史治疗</h3>
         <p>
-          必填列：姓名、手机号、会员等级。支持附带所属咨询、是否建会员服务群、是否建档小程序、生日、入会日期、有效期和历史治疗日期。会员卡号由系统自动分配。
+          必填列：会员卡号、姓名、会员等级。支持附带所属咨询、是否建会员服务群、是否建档小程序、生日、入会日期、有效期和历史治疗日期；会员卡号作为导入与治疗到诊的唯一匹配依据。
         </p>
         <label className="upload-button">
           选择 .xlsx 文件
@@ -1659,6 +1702,7 @@ function ImportPage({
             }
           >
             <strong>读取 {result.rows} 行</strong>
+            {result.summary && <p>{result.summary}</p>}
             {result.errors.length ? (
               result.errors.map((x) => <p key={x}>{x}</p>)
             ) : (
