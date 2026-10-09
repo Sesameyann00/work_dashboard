@@ -33,6 +33,7 @@ describe('Dashboard', () => {
     fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
     expect(screen.queryByRole('button', { name: '经营首页' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '数据导入' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '今日待办', level: 2 })).toBeInTheDocument()
   })
 })

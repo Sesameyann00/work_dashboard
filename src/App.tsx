@@ -270,7 +270,9 @@ function Workspace({
   onSignedOut: () => void;
 }) {
   const [role, setRole] = useState<Role>(initialRole);
-  const canViewDashboard = username.trim().toLowerCase() === "001";
+  const accountUsername = username.trim().toLowerCase();
+  const canViewDashboard = accountUsername === "001";
+  const canViewImport = accountUsername !== "004";
   const [page, setPage] = useState<Page>(canViewDashboard ? "dashboard" : "today");
   const demoMode = isDemoAuthEnabled && !hasSupabaseConfig;
   const [members, setMembers] = useState<Member[]>(demoMode ? demoMembers : []);
@@ -350,6 +352,7 @@ function Workspace({
     { id: "import" as Page, label: "数据导入", icon: FileSpreadsheet },
   ].filter((item) =>
     (item.id !== "dashboard" || canViewDashboard) &&
+    (item.id !== "import" || canViewImport) &&
     (role !== "head_nurse" || ["today", "tasks"].includes(item.id)),
   );
 
@@ -536,7 +539,7 @@ function Workspace({
               notify={notify}
             />
           )}
-          {page === "import" && (
+          {page === "import" && canViewImport && (
             <ImportPage role={role} batches={importBatches} notify={notify} />
           )}
           {page === "settings" && <SettingsPage />}
