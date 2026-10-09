@@ -8,7 +8,7 @@ describe('Dashboard', () => {
   it('renders the primary operating sections', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: '登录系统' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '001' } })
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
     fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
@@ -37,9 +37,9 @@ describe('Dashboard', () => {
     expect(screen.getByRole('heading', { name: '今日待办', level: 2 })).toBeInTheDocument()
   })
 
-  it('gives account 002 read-only navigation', () => {
+  it('gives account 001 read-only navigation', () => {
     render(<App />)
-    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '001' } })
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
     fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'readonly' } })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))

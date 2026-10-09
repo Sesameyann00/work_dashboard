@@ -272,8 +272,8 @@ function Workspace({
 }) {
   const [role, setRole] = useState<Role>(initialRole);
   const accountUsername = username.trim().toLowerCase();
-  const canViewDashboard = accountUsername === "001";
-  const canViewImport = !["002", "004"].includes(accountUsername);
+  const canViewDashboard = accountUsername === "002";
+  const canViewImport = !["001", "004"].includes(accountUsername);
   const [page, setPage] = useState<Page>(canViewDashboard ? "dashboard" : "today");
   const demoMode = isDemoAuthEnabled && !hasSupabaseConfig;
   const [members, setMembers] = useState<Member[]>(demoMode ? demoMembers : []);
