@@ -906,6 +906,7 @@ function Members({
   const [localQuery, setLocalQuery] = useState("");
   const [selected, setSelected] = useState<Member | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const defaultMembershipDate = todayInShanghai();
   const query = searchQuery || localQuery;
   const filtered = members
     .filter((m) =>
@@ -921,6 +922,8 @@ function Members({
   const add = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
+    const selectedLevel = String(data.get("level"));
+    const isProspect = selectedLevel === "prospect";
     const sourceCardNumber = String(data.get("sourceCardNumber")).trim().toUpperCase();
     if (members.some((m) => m.cardNumber.toUpperCase() === sourceCardNumber)) {
       notify("会员卡号已存在");
@@ -932,10 +935,10 @@ function Members({
           name: String(data.get("name")),
           source_card_number: sourceCardNumber,
           consultant: String(data.get("consultant")) || null,
-          has_service_group: data.get("hasServiceGroup") === "yes",
+          has_service_group: isProspect ? false : data.get("hasServiceGroup") === "yes",
           has_mini_program_profile: data.get("hasMiniProgramProfile") === "yes",
-          member_kind: String(data.get("memberKind")) as Member["kind"],
-          level: String(data.get("level")) as Member["level"],
+          member_kind: isProspect ? "prospect" : "member",
+          level: (isProspect ? "V1" : selectedLevel) as Member["level"],
           birthday: String(data.get("birthday")) || null,
           joined_on: String(data.get("joinedOn")) || null,
           membership_changed_on: String(data.get("membershipChangedOn")) || String(data.get("joinedOn")) || null,
@@ -999,17 +1002,10 @@ function Members({
             </select>
           </label>
           <label>
-            档案类型
-            <select name="memberKind" defaultValue="member">
-              <option value="member">正式会员</option>
-              <option value="prospect">准会员</option>
-            </select>
-          </label>
-          <label>
             等级
             <select name="level">
-              {["V1", "V2", "V3", "V4", "V5"].map((x) => (
-                <option key={x}>{x}</option>
+              {["prospect", "V1", "V2", "V3", "V4", "V5"].map((x) => (
+                <option key={x} value={x}>{x === "prospect" ? "准会员" : x}</option>
               ))}
             </select>
           </label>
@@ -1019,11 +1015,11 @@ function Members({
           </label>
           <label>
             入会日期
-            <input name="joinedOn" type="date" />
+            <input name="joinedOn" type="date" defaultValue={defaultMembershipDate} />
           </label>
           <label>
             会员变动日期
-            <input name="membershipChangedOn" type="date" required />
+            <input name="membershipChangedOn" type="date" defaultValue={defaultMembershipDate} required />
           </label>
           <label>有效期<input value="保存后按会员变动日期自动计算 1 年" readOnly /></label>
           <button className="primary-action">保存会员</button>
@@ -1188,15 +1184,17 @@ function MemberDetail({
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const selectedLevel = String(data.get("level"));
+    const isProspect = selectedLevel === "prospect";
     try {
       await updateMember(member.id, {
         name: String(data.get("name")),
         source_card_number: String(data.get("sourceCardNumber")).trim().toUpperCase() || null,
         consultant: String(data.get("consultant")) || null,
-        has_service_group: data.get("hasServiceGroup") === "yes",
+        has_service_group: isProspect ? false : data.get("hasServiceGroup") === "yes",
         has_mini_program_profile: data.get("hasMiniProgramProfile") === "yes",
-        member_kind: String(data.get("memberKind")) as Member["kind"],
-        level: String(data.get("level")) as Member["level"],
+        member_kind: isProspect ? "prospect" : "member",
+        level: (isProspect ? "V1" : selectedLevel) as Member["level"],
         birthday: String(data.get("birthday")) || null,
         joined_on: String(data.get("joinedOn")) || null,
         membership_changed_on: String(data.get("membershipChangedOn")) || null,
@@ -1254,17 +1252,10 @@ function MemberDetail({
             </select>
           </label>
           <label>
-            档案类型
-            <select name="memberKind" defaultValue={member.kind}>
-              <option value="prospect">准会员</option>
-              <option value="member">正式会员</option>
-            </select>
-          </label>
-          <label>
             等级
-            <select name="level" defaultValue={member.level}>
-              {(["V1", "V2", "V3", "V4", "V5"] as const).map((level) => (
-                <option key={level}>{level}</option>
+            <select name="level" defaultValue={member.kind === "prospect" ? "prospect" : member.level}>
+              {(["prospect", "V1", "V2", "V3", "V4", "V5"] as const).map((level) => (
+                <option key={level} value={level}>{level === "prospect" ? "准会员" : level}</option>
               ))}
             </select>
           </label>
@@ -1276,9 +1267,6 @@ function MemberDetail({
         </form>
       )}
       <div className="detail-grid">
-        <span>
-          档案类型<strong>{member.kind === "prospect" ? "准会员" : "正式会员"}</strong>
-        </span>
         <span>
           会员卡号<strong>{member.cardNumber}</strong>
         </span>
