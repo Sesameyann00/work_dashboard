@@ -10,6 +10,8 @@ const migrations = [
   'supabase/migrations/202610010006_share_benefit_expiry.sql',
   'supabase/migrations/202610010007_member_consultant.sql',
   'supabase/migrations/202610020003_member_card_and_service_group.sql',
+  'supabase/migrations/20261009081555_share_member_guest_card_day_one.sql',
+  'supabase/migrations/20261009081612_schedule_share_member_guest_card_day_one.sql',
 ]
 
 async function expectFailure(label, action) {
@@ -88,6 +90,18 @@ const adjustedShareExpiry = await database.query(`
   where member_id='10000000-0000-0000-0000-000000000001' and task_type='share_benefit_expiry'
 `)
 if (adjustedShareExpiry.rows[0]?.due_date !== '2023-07-30') throw new Error('share benefit expiry did not follow changed joining date')
+
+await database.exec(`
+  update public.members set joined_on='2026-10-08'
+  where id='10000000-0000-0000-0000-000000000002'
+`)
+const guestCardTask = await database.query(`
+  select due_date::text from public.tasks
+  where member_id='10000000-0000-0000-0000-000000000002'
+    and task_type='share_benefit_guest_card_day_1'
+    and status='pending'
+`)
+if (guestCardTask.rows[0]?.due_date !== '2026-10-09') throw new Error('guest card task should be due one day after joining')
 
 await database.exec(`set role authenticated; insert into public.members(name,phone,level) values('RLS测试','13900000001','V1'); reset role;`)
 await database.exec(`delete from public.members where phone='13900000001'; update public.profiles set role='management' where id=auth.uid();`)

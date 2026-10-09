@@ -99,6 +99,7 @@ const taskNames: Record<string, string> = {
   share_benefit_end_30d: "分享权益剩余 30 天提醒",
   share_benefit_end_15d: "分享权益结束前 15 天提醒",
   share_benefit_end_7d: "分享权益剩余 7 天提醒",
+  share_benefit_guest_card_day_1: "分享会员请客卡小程序",
 };
 
 function todayInShanghai() {
@@ -1380,7 +1381,7 @@ function Tasks({
   const categoryOf = (task: Task) =>
     task.type.includes("有效期")
       ? "member_expiry"
-      : task.type.includes("分享权益") || task.type.includes("权益到期")
+      : task.taskType.startsWith("share_benefit_")
         ? "share_expiry"
         : task.type.includes("生日")
           ? "birthday"
