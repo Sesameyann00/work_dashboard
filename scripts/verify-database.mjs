@@ -12,6 +12,7 @@ const migrations = [
   'supabase/migrations/202610020003_member_card_and_service_group.sql',
   'supabase/migrations/20261009081555_share_member_guest_card_day_one.sql',
   'supabase/migrations/20261009081612_schedule_share_member_guest_card_day_one.sql',
+  'supabase/migrations/20261009082555_highest_admin_edit_all_task_statuses.sql',
 ]
 
 async function expectFailure(label, action) {

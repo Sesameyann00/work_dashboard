@@ -228,6 +228,15 @@ export async function processTaskBatch(taskIds: string[], targetStatus: 'complet
   return Number(data ?? 0)
 }
 
+export async function adminSetTaskStatuses(taskIds: string[], targetStatus: 'completed' | 'archived' | 'cancelled') {
+  const { data, error } = await client().rpc('admin_set_task_statuses', {
+    target_task_ids: taskIds,
+    target_status: targetStatus,
+  })
+  if (error) throw error
+  return Number(data ?? 0)
+}
+
 export async function syncMemberCardNumbers(entries: CardSyncEntry[]): Promise<CardSyncResult> {
   const { data: auth } = await client().auth.getUser()
   if (!auth.user) throw new Error('登录会话已失效')

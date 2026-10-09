@@ -51,6 +51,7 @@ import { hasSupabaseConfig, isDemoAuthEnabled } from "./lib/supabase";
 import {
   completeTask,
   confirmD0,
+  adminSetTaskStatuses,
   createMember,
   createTreatment,
   getDashboardData,
@@ -549,6 +550,7 @@ function Workspace({
             <Tasks
               tasks={tasks}
               role={role}
+              isHighestAdmin={accountUsername === "002"}
               todayOnly
               onRefresh={refreshData}
               notify={notify}
@@ -558,6 +560,7 @@ function Workspace({
             <Tasks
               tasks={tasks}
               role={role}
+              isHighestAdmin={accountUsername === "002"}
               todayOnly={false}
               onRefresh={refreshData}
               notify={notify}
@@ -1358,12 +1361,14 @@ function MemberDetail({
 function Tasks({
   tasks,
   role,
+  isHighestAdmin,
   todayOnly,
   onRefresh,
   notify,
 }: {
   tasks: Task[];
   role: Role;
+  isHighestAdmin: boolean;
   todayOnly: boolean;
   onRefresh: () => Promise<void>;
   notify: (s: string) => void;
@@ -1377,7 +1382,7 @@ function Tasks({
   const [filter, setFilter] = useState("all");
   const [category, setCategory] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [batchStatus, setBatchStatus] = useState<"completed" | "archived">("completed");
+  const [batchStatus, setBatchStatus] = useState<"completed" | "archived" | "cancelled">("completed");
   const categoryOf = (task: Task) =>
     task.type.includes("有效期")
       ? "member_expiry"
@@ -1401,10 +1406,10 @@ function Tasks({
   const dueVisible = visible.filter(
     (task) => task.status === "pending" && task.due <= today,
   );
-  const pendingShown = shown.filter((task) => task.status === "pending");
-  const allShownSelected = pendingShown.length > 0 && pendingShown.every((task) => selectedIds.includes(task.id));
+  const selectableShown = isHighestAdmin ? shown : shown.filter((task) => task.status === "pending");
+  const allShownSelected = selectableShown.length > 0 && selectableShown.every((task) => selectedIds.includes(task.id));
   const toggleAllShown = () => {
-    const ids = pendingShown.map((task) => task.id);
+    const ids = selectableShown.map((task) => task.id);
     setSelectedIds((current) =>
       ids.every((id) => current.includes(id))
         ? current.filter((id) => !ids.includes(id))
@@ -1414,12 +1419,24 @@ function Tasks({
   const processSelected = async () => {
     if (!selectedIds.length) return notify("请先选择待处理任务");
     try {
-      const changed = await processTaskBatch(selectedIds, batchStatus);
+      const changed = isHighestAdmin
+        ? await adminSetTaskStatuses(selectedIds, batchStatus)
+        : await processTaskBatch(selectedIds, batchStatus as "completed" | "archived");
       setSelectedIds([]);
       await onRefresh();
-      notify(`已将 ${changed} 项任务标记为${batchStatus === "completed" ? "已完成" : "已归档"}`);
+      const statusLabel = batchStatus === "completed" ? "已完成" : batchStatus === "archived" ? "已归档" : "已取消";
+      notify(`已将 ${changed} 项任务标记为${statusLabel}`);
     } catch (error) {
       notify(error instanceof Error ? error.message : "批量处理失败");
+    }
+  };
+  const adminEditStatus = async (task: Task, status: "completed" | "archived" | "cancelled") => {
+    try {
+      await adminSetTaskStatuses([task.id], status);
+      await onRefresh();
+      notify("任务状态已更新");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "任务状态更新失败");
     }
   };
   const act = async (task: Task) => {
@@ -1452,6 +1469,7 @@ function Tasks({
           <select aria-label="批量处理结果" value={batchStatus} onChange={(event) => setBatchStatus(event.target.value as "completed" | "archived")}>
             <option value="completed">已完成</option>
             <option value="archived">已归档</option>
+            {isHighestAdmin && <option value="cancelled">已取消</option>}
           </select>
           <button className="primary-action" onClick={processSelected}>批量处理所选</button>
         </div>}
@@ -1503,7 +1521,7 @@ function Tasks({
         {shown.map((t) => (
           <div className="data-row" key={t.id}>
             <span>
-              {t.status === "pending" && role !== "readonly" && (
+              {(isHighestAdmin || t.status === "pending") && role !== "readonly" && (
                 <input
                   type="checkbox"
                   aria-label={`选择 ${t.member} ${t.type}`}
@@ -1528,7 +1546,19 @@ function Tasks({
               {t.due}
             </span>
             <span>
-              {t.status === "pending" && role !== "readonly" ? (
+              {isHighestAdmin ? (
+                <select
+                  className="task-status-editor"
+                  aria-label={`编辑 ${t.member} ${t.type} 状态`}
+                  value={["completed", "archived", "cancelled"].includes(t.status) ? t.status : ""}
+                  onChange={(event) => void adminEditStatus(t, event.target.value as "completed" | "archived" | "cancelled")}
+                >
+                  <option value="" disabled>选择状态</option>
+                  <option value="completed">已完成</option>
+                  <option value="archived">已归档</option>
+                  <option value="cancelled">已取消</option>
+                </select>
+              ) : t.status === "pending" && role !== "readonly" ? (
                 <button className="small-action" onClick={() => act(t)}>
                   {t.responsibilityRole === "head_nurse" ? "确认" : "完成"}
                 </button>

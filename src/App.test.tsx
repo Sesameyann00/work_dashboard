@@ -59,4 +59,15 @@ describe('Dashboard', () => {
     expect(screen.getByText('林女士')).toBeInTheDocument()
     expect(screen.queryByText('陈女士')).not.toBeInTheDocument()
   })
+
+  it('lets account 002 edit every service task status', () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
+    fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    fireEvent.click(screen.getByRole('button', { name: /^服务任务/ }))
+    expect(screen.getByLabelText('编辑 林女士 D3 回访 状态')).toBeInTheDocument()
+    expect(screen.getAllByRole('option', { name: '已取消' }).length).toBeGreaterThan(0)
+  })
 })
