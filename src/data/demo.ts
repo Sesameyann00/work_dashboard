@@ -1,4 +1,4 @@
-export type Role = "management" | "member_admin" | "head_nurse";
+export type Role = "management" | "member_admin" | "head_nurse" | "readonly";
 export type Member = {
   id: string;
   cardNumber: string;

@@ -77,6 +77,7 @@ const roleNames: Record<Role, string> = {
   management: "管理层",
   member_admin: "会员中心主管",
   head_nurse: "护士长",
+  readonly: "只读账号",
 };
 const taskNames: Record<string, string> = {
   care_d0: "D0 护理确认",
@@ -272,7 +273,7 @@ function Workspace({
   const [role, setRole] = useState<Role>(initialRole);
   const accountUsername = username.trim().toLowerCase();
   const canViewDashboard = accountUsername === "001";
-  const canViewImport = accountUsername !== "004";
+  const canViewImport = !["002", "004"].includes(accountUsername);
   const [page, setPage] = useState<Page>(canViewDashboard ? "dashboard" : "today");
   const demoMode = isDemoAuthEnabled && !hasSupabaseConfig;
   const [members, setMembers] = useState<Member[]>(demoMode ? demoMembers : []);
@@ -480,6 +481,7 @@ function Workspace({
                 <option value="member_admin">会员中心主管</option>
                 <option value="head_nurse">护士长</option>
                 <option value="management">管理层</option>
+                <option value="readonly">只读账号</option>
               </select>
             )}
           </div>
@@ -624,6 +626,7 @@ function Login({ onLogin }: { onLogin: (role: Role, username: string) => void })
               <option value="member_admin">会员中心主管</option>
               <option value="head_nurse">护士长</option>
               <option value="management">管理层</option>
+              <option value="readonly">只读账号</option>
             </select>
           </label>
         )}
@@ -1419,14 +1422,14 @@ function Tasks({
           <h2>{todayOnly ? "今日待办" : role === "head_nurse" ? "D0 护理确认" : "服务任务"}</h2>
           <p>{todayOnly ? `今天及逾期共 ${visible.length} 项，按任务分类统筹执行。` : "逾期优先，再按会员等级与到期时间排序。"}</p>
         </div>
-        <div className="batch-actions">
+        {role !== "readonly" && <div className="batch-actions">
           {selectedIds.length > 0 && <span>已选 {selectedIds.length} 项</span>}
           <select aria-label="批量处理结果" value={batchStatus} onChange={(event) => setBatchStatus(event.target.value as "completed" | "archived")}>
             <option value="completed">已完成</option>
             <option value="archived">已归档</option>
           </select>
           <button className="primary-action" onClick={processSelected}>批量处理所选</button>
-        </div>
+        </div>}
       </section>
       <div className="toolbar">
         <div className="tabs category-tabs" aria-label="任务分类">
@@ -1465,7 +1468,7 @@ function Tasks({
       </div>}
       <div className="panel data-table task-table">
         <div className="data-row data-head">
-          <span><input type="checkbox" aria-label="选择当前列表全部待处理任务" checked={allShownSelected} onChange={toggleAllShown} /></span>
+          <span>{role !== "readonly" && <input type="checkbox" aria-label="选择当前列表全部待处理任务" checked={allShownSelected} onChange={toggleAllShown} />}</span>
           <span>会员</span>
           <span>任务</span>
           <span>责任人</span>
@@ -1475,7 +1478,7 @@ function Tasks({
         {shown.map((t) => (
           <div className="data-row" key={t.id}>
             <span>
-              {t.status === "pending" && (
+              {t.status === "pending" && role !== "readonly" && (
                 <input
                   type="checkbox"
                   aria-label={`选择 ${t.member} ${t.type}`}
@@ -1500,7 +1503,7 @@ function Tasks({
               {t.due}
             </span>
             <span>
-              {t.status === "pending" ? (
+              {t.status === "pending" && role !== "readonly" ? (
                 <button className="small-action" onClick={() => act(t)}>
                   {t.responsibilityRole === "head_nurse" ? "确认" : "完成"}
                 </button>
