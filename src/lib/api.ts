@@ -31,6 +31,16 @@ export type DashboardData = {
   trend: { month: string; visits: number }[]
 }
 
+export type MemberUpgrade = {
+  id: string
+  memberId: string
+  name: string
+  cardNumber: string
+  oldLevel: string
+  newLevel: string
+  membershipChangedOn: string
+}
+
 export type TimelineEvent = {
   source_id: string
   event_date: string
@@ -134,6 +144,35 @@ export async function getDashboardData(): Promise<DashboardData> {
     levelVisitCounts: (levelVisits ?? []).map((row) => ({ level: row.level, visits: Number(row.member_count ?? 0) })),
     trend: (trend ?? []).map((row) => ({ month: row.month, visits: Number(row.member_count ?? 0) })),
   }
+}
+
+export async function listMemberUpgradesThisMonth(): Promise<MemberUpgrade[]> {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+  const monthStart = `${today.slice(0, 7)}-01`
+  const [year, month] = monthStart.split('-').map(Number)
+  const nextMonthStart = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10)
+  const { data, error } = await client()
+    .from('member_upgrades')
+    .select('id,member_id,name,card_number,old_level,new_level,membership_changed_on,changed_at')
+    .gte('membership_changed_on', monthStart)
+    .lt('membership_changed_on', nextMonthStart)
+    .order('membership_changed_on', { ascending: false })
+    .order('changed_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    memberId: String(row.member_id),
+    name: String(row.name),
+    cardNumber: String(row.card_number || '—'),
+    oldLevel: String(row.old_level),
+    newLevel: String(row.new_level),
+    membershipChangedOn: String(row.membership_changed_on),
+  }))
 }
 
 export async function getMemberTimeline(memberId: string) {

@@ -104,6 +104,7 @@
 .detail-list strong, .detail-list small { display: block; }
 .detail-list strong { color: #332e38; }
 .detail-list small { margin-top: 4px; color: #99939f; }
+.detail-list .upgrade-date { flex: 0 0 auto; color: #74677f; font-size: 12px; font-variant-numeric: tabular-nums; }
 .empty-state { padding: 28px 0; color: var(--muted); text-align: center; }
 .data-table {
   overflow: hidden;

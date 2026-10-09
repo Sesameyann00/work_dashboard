@@ -58,6 +58,7 @@ import {
   getMemberTimeline,
   getMyProfile,
   listMembers,
+  listMemberUpgradesThisMonth,
   listImportBatches,
   listTasks,
   onAuthStateChange,
@@ -68,6 +69,7 @@ import {
   type DashboardData,
   type ImportBatch,
   type MemberRow,
+  type MemberUpgrade,
   type TimelineEvent,
   syncMemberCardNumbers,
   updateMember,
@@ -319,6 +321,7 @@ function Workspace({
     levelVisitCounts: [],
     trend: [],
   });
+  const [memberUpgrades, setMemberUpgrades] = useState<MemberUpgrade[]>([]);
   const [dataLoading, setDataLoading] = useState(hasSupabaseConfig);
   const [importBatches, setImportBatches] = useState<ImportBatch[]>([]);
   const [globalQuery, setGlobalQuery] = useState("");
@@ -337,11 +340,12 @@ function Workspace({
   const refreshData = useCallback(async () => {
     if (!hasSupabaseConfig) return;
     try {
-      const [memberRows, taskRows, metrics, batches] = await Promise.all([
+      const [memberRows, taskRows, metrics, batches, upgrades] = await Promise.all([
         listMembers(),
         listTasks(),
         canViewDashboard ? getDashboardData() : Promise.resolve(null),
         listImportBatches(),
+        canViewDashboard ? listMemberUpgradesThisMonth() : Promise.resolve([]),
       ]);
       setMembers(memberRows.map(mapMember));
       setTasks(taskRows.map((row) => mapTask(row as Record<string, unknown>)));
@@ -354,6 +358,7 @@ function Workspace({
           }),
         })),
       );
+      setMemberUpgrades(upgrades);
     } catch {
       setToast("真实数据加载失败，请刷新重试");
     } finally {
@@ -532,6 +537,7 @@ function Workspace({
               members={members}
               tasks={tasks}
               data={dashboardData}
+              memberUpgrades={memberUpgrades}
               role={role}
               onNavigate={setPage}
             />
@@ -686,12 +692,14 @@ function Dashboard({
   members,
   tasks,
   data,
+  memberUpgrades,
   role,
   onNavigate,
 }: {
   members: Member[];
   tasks: Task[];
   data: DashboardData;
+  memberUpgrades: MemberUpgrade[];
   role: Role;
   onNavigate: (p: Page) => void;
 }) {
@@ -700,6 +708,7 @@ function Dashboard({
     subtitle: string;
     members?: Member[];
     tasks?: Task[];
+    upgrades?: MemberUpgrade[];
   } | null>(null);
   const today = todayInShanghai();
   const currentMonth = today.slice(0, 7);
@@ -710,7 +719,6 @@ function Dashboard({
     visits: item.visits,
   }));
   const formalMembers = members.filter((member) => member.kind === "member");
-  const prospectMembers = members.filter((member) => member.kind === "prospect");
   const levelVisitCounts = ["V1", "V2", "V3", "V4", "V5"].map((level) => ({
     level,
     count: data.levelVisitCounts.find((item) => item.level === level)?.visits ?? 0,
@@ -779,13 +787,13 @@ function Dashboard({
         <Metric
           label="准会员蓄水池"
           value={String(data.prospectCount)}
-          note={`本月已转正式会员 ${data.prospectConvertedThisMonth} 人`}
+          note={`本月会员升级 ${memberUpgrades.length} 人`}
           icon={TrendingUp}
           accent="purple"
           onClick={() => setDetail({
-            title: "准会员蓄水池",
-            subtitle: "当前准会员档案，用于跟踪后续转化",
-            members: prospectMembers,
+            title: "本月会员升级",
+            subtitle: "按会员变动日期与等级升级记录共同确认",
+            upgrades: memberUpgrades,
           })}
         />
       </section>
@@ -903,7 +911,13 @@ function Dashboard({
                 <span className={task.status === "pending" && task.due < today ? "danger-text" : ""}>{task.due}</span>
               </button>
             ))}
-            {!detail.members?.length && !detail.tasks?.length && <p className="empty-state">暂无涉及记录</p>}
+            {detail.upgrades?.map((upgrade) => (
+              <button key={upgrade.id} onClick={() => onNavigate("members")}>
+                <span><strong>{upgrade.name}</strong><small>{upgrade.cardNumber} · {upgrade.oldLevel} → {upgrade.newLevel}</small></span>
+                <span className="upgrade-date">变动日期 {upgrade.membershipChangedOn}</span>
+              </button>
+            ))}
+            {!detail.members?.length && !detail.tasks?.length && !detail.upgrades?.length && <p className="empty-state">本月暂无会员升级记录</p>}
           </div>
         </aside>
       )}
