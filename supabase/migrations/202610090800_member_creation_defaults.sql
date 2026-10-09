@@ -4,7 +4,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  new.joined_on := coalesce(new.joined_on, current_date);
+  new.joined_on := coalesce(new.joined_on, (now() at time zone 'Asia/Shanghai')::date);
   new.membership_changed_on := coalesce(new.membership_changed_on, new.joined_on);
   if new.member_kind = 'prospect' then
     new.has_service_group := false;
