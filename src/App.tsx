@@ -128,6 +128,21 @@ function displayDate(date: string | null | undefined) {
   return date || "—";
 }
 
+function displayActionTime(value: string | undefined) {
+  if (!value) return "";
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(value));
+  const date = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${date.year}-${date.month}-${date.day} ${date.hour}:${date.minute}`;
+}
+
 function dateInShanghai(date: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
@@ -187,6 +202,12 @@ function mapTask(row: Record<string, unknown>): Task {
   const taskType = String(row.task_type);
   const isCareTask = taskType === "care_d0";
   const belongsToConsultant = taskType.startsWith("followup_") || taskType.startsWith("validity_");
+  const status = row.status as Task["status"];
+  const actionAt = status === "completed" || status === "confirmed"
+    ? String(row.completed_at || row.updated_at || "")
+    : status === "pending"
+      ? ""
+      : String(row.updated_at || "");
   return {
     id: String(row.id),
     memberId: String(row.member_id),
@@ -195,13 +216,14 @@ function mapTask(row: Record<string, unknown>): Task {
     taskType,
     type: taskNames[taskType] || taskType,
     due: String(row.due_date),
-    status: row.status as Task["status"],
+    status,
     owner: isCareTask
       ? "护士长"
       : belongsToConsultant
         ? member?.consultant || "未分配咨询"
         : "会员中心",
     responsibilityRole: isCareTask ? "head_nurse" : "member_admin",
+    actionAt,
   };
 }
 
@@ -1660,19 +1682,22 @@ function Tasks({
                   >取消</button>
                 </span>
               ) : (
-                <em className="status">
-                  {t.status === "pending"
-                    ? t.due < today ? "已逾期" : "待处理"
-                    : t.status === "confirmed"
-                    ? "已确认"
-                    : t.status === "completed"
-                      ? "已完成"
-                      : t.status === "archived"
-                        ? "已归档"
-                      : t.status === "superseded"
-                        ? "已覆盖"
-                        : "已取消"}
-                </em>
+                <span className="task-result">
+                  <em className="status">
+                    {t.status === "pending"
+                      ? t.due < today ? "已逾期" : "待处理"
+                      : t.status === "confirmed"
+                      ? "已确认"
+                      : t.status === "completed"
+                        ? "已完成"
+                        : t.status === "archived"
+                          ? "已归档"
+                        : t.status === "superseded"
+                          ? "已覆盖"
+                          : "已取消"}
+                  </em>
+                  {t.actionAt && <small>操作时间 {displayActionTime(t.actionAt)}</small>}
+                </span>
               )}
             </span>
           </div>

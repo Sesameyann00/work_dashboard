@@ -73,4 +73,16 @@ describe('Dashboard', () => {
     expect(screen.getByLabelText('取消 林女士 D3 回访')).toBeInTheDocument()
     expect(screen.getAllByRole('option', { name: '已取消' }).length).toBeGreaterThan(0)
   })
+
+  it('shows the operation time for processed tasks', () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
+    fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    fireEvent.click(screen.getByRole('button', { name: /^服务任务/ }))
+    fireEvent.click(screen.getByRole('button', { name: '已完成' }))
+    expect(screen.getByText('操作时间 2026-10-02 14:30')).toBeInTheDocument()
+    expect(screen.queryByLabelText('完成 林女士 D1 回访')).not.toBeInTheDocument()
+  })
 })

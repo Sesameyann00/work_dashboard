@@ -118,7 +118,7 @@ export async function listMembers() {
 }
 
 export async function listTasks() {
-  const { data, error } = await client().from('tasks').select('id,member_id,task_type,due_date,status,members(name,level,member_kind,consultant)').order('due_date')
+  const { data, error } = await client().from('tasks').select('id,member_id,task_type,due_date,status,completed_at,updated_at,members(name,level,member_kind,consultant)').order('due_date')
   if (error) throw error
   return data
 }

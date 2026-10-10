@@ -28,6 +28,7 @@ export type Task = {
   status: "pending" | "completed" | "confirmed" | "superseded" | "cancelled" | "archived";
   owner: string;
   responsibilityRole: "member_admin" | "head_nurse";
+  actionAt?: string;
 };
 
 export const demoMembers: Member[] = [
@@ -180,5 +181,18 @@ export const demoTasks: Task[] = [
     status: "pending",
     owner: "会员中心",
     responsibilityRole: "member_admin",
+  },
+  {
+    id: "t6",
+    memberId: "m1",
+    member: "林女士",
+    level: "V5",
+    taskType: "followup_d1",
+    type: "D1 回访",
+    due: "2026-10-02",
+    status: "completed",
+    owner: "张顾问",
+    responsibilityRole: "member_admin",
+    actionAt: "2026-10-02T06:30:00.000Z",
   },
 ];

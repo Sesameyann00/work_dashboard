@@ -183,6 +183,8 @@
 .task-action-button.complete { border-color: #493257; background: #493257; color: #fff; }
 .task-action-button.cancel { border-color: #ead4d6; color: #a13f49; }
 .task-action-button:disabled { opacity: 0.42; cursor: not-allowed; }
+.task-result { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.task-result small { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .secondary-action { height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: #51485b; }
 .small-action {
   padding: 6px 11px;
