@@ -52,6 +52,7 @@ import {
   completeTask,
   confirmD0,
   adminSetTaskStatuses,
+  archiveMember,
   createMember,
   createTreatment,
   getDashboardData,
@@ -141,6 +142,14 @@ function dateInShanghai(date: string) {
 function calendarDay(date: string) {
   const [year, month, day] = date.split("-").map(Number);
   return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+}
+
+function oneYearAfter(date: string) {
+  if (!date) return "";
+  const [year, month, day] = date.split("-").map(Number);
+  const lastDayOfMonth = new Date(Date.UTC(year + 1, month, 0)).getUTCDate();
+  const next = new Date(Date.UTC(year + 1, month - 1, Math.min(day, lastDayOfMonth)));
+  return next.toISOString().slice(0, 10);
 }
 
 function matchesCreatedRange(member: Member, range: "all" | "today" | "week" | "month") {
@@ -949,6 +958,8 @@ function Members({
   const [selected, setSelected] = useState<Member | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const defaultMembershipDate = todayInShanghai();
+  const [newMembershipChangedOn, setNewMembershipChangedOn] = useState(defaultMembershipDate);
+  const [newValidUntil, setNewValidUntil] = useState(oneYearAfter(defaultMembershipDate));
   const query = searchQuery || localQuery;
   const filtered = members
     .filter((m) =>
@@ -985,9 +996,12 @@ function Members({
           birthday: String(data.get("birthday")) || null,
           joined_on: String(data.get("joinedOn")) || null,
           membership_changed_on: String(data.get("membershipChangedOn")) || String(data.get("joinedOn")) || null,
+          valid_until: String(data.get("validUntil")) || null,
         });
         await onRefresh();
       }
+      setNewMembershipChangedOn(defaultMembershipDate);
+      setNewValidUntil(oneYearAfter(defaultMembershipDate));
       setShowAdd(false);
       notify("会员已创建");
     } catch (error) {
@@ -1062,9 +1076,21 @@ function Members({
           </label>
           <label>
             会员变动日期
-            <input name="membershipChangedOn" type="date" defaultValue={defaultMembershipDate} required />
+            <input
+              name="membershipChangedOn"
+              type="date"
+              value={newMembershipChangedOn}
+              onChange={(event) => {
+                setNewMembershipChangedOn(event.target.value);
+                setNewValidUntil(oneYearAfter(event.target.value));
+              }}
+              required
+            />
           </label>
-          <label>有效期<input value="保存后按会员变动日期自动计算 1 年" readOnly /></label>
+          <label>
+            有效期
+            <input name="validUntil" type="date" value={newValidUntil} onChange={(event) => setNewValidUntil(event.target.value)} required />
+          </label>
           <button className="primary-action">保存会员</button>
         </form>
       )}
@@ -1223,6 +1249,8 @@ function MemberDetail({
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(hasSupabaseConfig);
   const [editing, setEditing] = useState(false);
+  const [membershipChangedOn, setMembershipChangedOn] = useState(member.membershipChangedOn === "—" ? "" : member.membershipChangedOn || "");
+  const [validUntil, setValidUntil] = useState(member.validUntil === "—" ? oneYearAfter(membershipChangedOn) : member.validUntil || "");
 
   useEffect(() => {
     if (!hasSupabaseConfig) return;
@@ -1252,12 +1280,26 @@ function MemberDetail({
         birthday: String(data.get("birthday")) || null,
         joined_on: String(data.get("joinedOn")) || null,
         membership_changed_on: String(data.get("membershipChangedOn")) || null,
+        valid_until: String(data.get("validUntil")) || null,
       });
       await onRefresh();
       notify("会员档案已更新");
       onClose();
     } catch (error) {
       notify(error instanceof Error ? error.message : "会员档案更新失败");
+    }
+  };
+
+  const remove = async () => {
+    const confirmed = window.confirm(`确认删除会员档案“${member.name}（${member.cardNumber}）”吗？\n删除后将不再显示，但历史数据会保留。`);
+    if (!confirmed) return;
+    try {
+      await archiveMember(member.id);
+      await onRefresh();
+      notify("会员档案已删除");
+      onClose();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "会员档案删除失败");
     }
   };
 
@@ -1315,9 +1357,27 @@ function MemberDetail({
           </label>
           <label>生日<input name="birthday" type="date" defaultValue={member.birthday === "—" ? "" : member.birthday} /></label>
           <label>入会日期<input name="joinedOn" type="date" defaultValue={member.joinedOn === "—" ? "" : member.joinedOn} /></label>
-          <label>会员变动日期<input name="membershipChangedOn" type="date" defaultValue={member.membershipChangedOn === "—" ? "" : member.membershipChangedOn} required /></label>
-          <label>有效期<input value={member.validUntil} readOnly /></label>
-          <button className="primary-action">保存修改</button>
+          <label>
+            会员变动日期
+            <input
+              name="membershipChangedOn"
+              type="date"
+              value={membershipChangedOn}
+              onChange={(event) => {
+                setMembershipChangedOn(event.target.value);
+                setValidUntil(oneYearAfter(event.target.value));
+              }}
+              required
+            />
+          </label>
+          <label>
+            有效期
+            <input name="validUntil" type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} required />
+          </label>
+          <div className="member-form-actions">
+            <button className="primary-action" type="submit">保存修改</button>
+            <button className="danger-action" type="button" onClick={remove}>删除档案</button>
+          </div>
         </form>
       )}
       <div className="detail-grid">
@@ -1453,6 +1513,39 @@ function Tasks({
       notify(error instanceof Error ? error.message : "任务状态更新失败");
     }
   };
+  const canManageTask = (task: Task) => {
+    if (role === "readonly") return false;
+    if (isHighestAdmin) return true;
+    if (task.status !== "pending") return false;
+    if (task.responsibilityRole === "head_nurse") return role === "head_nurse" || role === "management";
+    if (task.responsibilityRole === "member_admin") return role === "member_admin" || role === "management";
+    return role === "member_admin" || role === "management";
+  };
+  const changeTaskStatus = async (task: Task, status: "completed" | "archived" | "cancelled") => {
+    if (isHighestAdmin) {
+      await adminEditStatus(task, status);
+      return;
+    }
+    if (!canManageTask(task)) {
+      notify("当前帐号无权处理该任务");
+      return;
+    }
+    if (status === "cancelled") {
+      notify("仅最高管理员可以取消任务");
+      return;
+    }
+    if (status === "completed") {
+      await act(task);
+      return;
+    }
+    try {
+      await processTaskBatch([task.id], "archived");
+      await onRefresh();
+      notify("任务已归档");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "任务归档失败");
+    }
+  };
   const act = async (task: Task) => {
     if (task.responsibilityRole === "head_nurse" && role !== "head_nurse" && role !== "management") {
       notify("D0 仅护士长可以确认");
@@ -1560,22 +1653,28 @@ function Tasks({
               {t.due}
             </span>
             <span>
-              {isHighestAdmin ? (
-                <select
-                  className="task-status-editor"
-                  aria-label={`编辑 ${t.member} ${t.type} 状态`}
-                  value={["completed", "archived", "cancelled"].includes(t.status) ? t.status : ""}
-                  onChange={(event) => void adminEditStatus(t, event.target.value as "completed" | "archived" | "cancelled")}
-                >
-                  <option value="" disabled>选择状态</option>
-                  <option value="completed">已完成</option>
-                  <option value="archived">已归档</option>
-                  <option value="cancelled">已取消</option>
-                </select>
-              ) : t.status === "pending" && role !== "readonly" ? (
-                <button className="small-action" onClick={() => act(t)}>
-                  {t.responsibilityRole === "head_nurse" ? "确认" : "完成"}
-                </button>
+              {role !== "readonly" ? (
+                <span className="task-action-group">
+                  <button
+                    className="task-action-button complete"
+                    aria-label={`完成 ${t.member} ${t.type}`}
+                    disabled={!canManageTask(t)}
+                    onClick={() => void changeTaskStatus(t, "completed")}
+                  >完成</button>
+                  <button
+                    className="task-action-button archive"
+                    aria-label={`归档 ${t.member} ${t.type}`}
+                    disabled={!canManageTask(t)}
+                    onClick={() => void changeTaskStatus(t, "archived")}
+                  >归档</button>
+                  <button
+                    className="task-action-button cancel"
+                    aria-label={`取消 ${t.member} ${t.type}`}
+                    disabled={!isHighestAdmin}
+                    title={isHighestAdmin ? "取消任务" : "仅最高管理员可取消"}
+                    onClick={() => void changeTaskStatus(t, "cancelled")}
+                  >取消</button>
+                </span>
               ) : (
                 <em className="status">
                   {t.status === "confirmed"

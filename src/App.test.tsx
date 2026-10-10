@@ -55,9 +55,10 @@ describe('Dashboard', () => {
     fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
     fireEvent.click(screen.getByRole('button', { name: '会员管理' }))
-    fireEvent.change(screen.getByLabelText('按新增时间筛选'), { target: { value: 'today' } })
+    fireEvent.change(screen.getByLabelText('按新增时间筛选'), { target: { value: 'month' } })
     expect(screen.getByText('林女士')).toBeInTheDocument()
-    expect(screen.queryByText('陈女士')).not.toBeInTheDocument()
+    expect(screen.getByText('陈女士')).toBeInTheDocument()
+    expect(screen.queryByText('王女士')).not.toBeInTheDocument()
   })
 
   it('lets account 002 edit every service task status', () => {
@@ -67,7 +68,9 @@ describe('Dashboard', () => {
     fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
     fireEvent.click(screen.getByRole('button', { name: /^服务任务/ }))
-    expect(screen.getByLabelText('编辑 林女士 D3 回访 状态')).toBeInTheDocument()
+    expect(screen.getByLabelText('完成 林女士 D3 回访')).toBeInTheDocument()
+    expect(screen.getByLabelText('归档 林女士 D3 回访')).toBeInTheDocument()
+    expect(screen.getByLabelText('取消 林女士 D3 回访')).toBeInTheDocument()
     expect(screen.getAllByRole('option', { name: '已取消' }).length).toBeGreaterThan(0)
   })
 })

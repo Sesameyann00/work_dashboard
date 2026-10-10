@@ -173,12 +173,16 @@
   color: #8a5d24;
 }
 .task-table .data-row {
-  grid-template-columns: 34px 1.2fr 1fr 0.8fr 0.8fr 0.6fr;
+  grid-template-columns: 34px 1.1fr 1fr 0.75fr 0.7fr 1.15fr;
 }
 .batch-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .batch-actions span { color: var(--muted); font-size: 12px; }
 .batch-actions select { height: 40px; padding: 0 30px 0 11px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: #51485b; }
-.task-status-editor { max-width: 96px; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #51485b; font-size: 11px; }
+.task-action-group { display: flex; align-items: center; gap: 5px; }
+.task-action-button { min-width: 42px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #51485b; font-size: 11px; white-space: nowrap; }
+.task-action-button.complete { border-color: #493257; background: #493257; color: #fff; }
+.task-action-button.cancel { border-color: #ead4d6; color: #a13f49; }
+.task-action-button:disabled { opacity: 0.42; cursor: not-allowed; }
 .secondary-action { height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: #51485b; }
 .small-action {
   padding: 6px 11px;
@@ -224,6 +228,10 @@
   align-self: end;
   justify-content: center;
 }
+.member-form-actions { align-self: end; display: flex; gap: 8px; }
+.member-form-actions .primary-action,
+.member-form-actions .danger-action { flex: 1; justify-content: center; white-space: nowrap; }
+.danger-action { height: 40px; padding: 0 14px; border: 1px solid #d9b9bd; border-radius: 11px; background: #fff; color: #a13f49; }
 .drawer {
   position: fixed;
   z-index: 30;

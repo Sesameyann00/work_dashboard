@@ -197,6 +197,7 @@ export async function createMember(input: {
   birthday: string | null
   joined_on: string | null
   membership_changed_on: string | null
+  valid_until: string | null
 }) {
   const { data: auth } = await client().auth.getUser()
   if (!auth.user) throw new Error('登录会话已失效')
@@ -220,6 +221,7 @@ export async function updateMember(memberId: string, input: {
   birthday: string | null
   joined_on: string | null
   membership_changed_on: string | null
+  valid_until: string | null
 }) {
   const { data: auth } = await client().auth.getUser()
   if (!auth.user) throw new Error('登录会话已失效')
@@ -231,6 +233,11 @@ export async function updateMember(memberId: string, input: {
     .single()
   if (error) throw error
   return data as MemberRow
+}
+
+export async function archiveMember(memberId: string) {
+  const { error } = await client().rpc('archive_member', { target_member_id: memberId })
+  if (error) throw error
 }
 
 export async function listImportBatches() {
