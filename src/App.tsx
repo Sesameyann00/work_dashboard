@@ -990,7 +990,7 @@ function Members({
           source_card_number: sourceCardNumber,
           consultant: String(data.get("consultant")) || null,
           has_service_group: isProspect ? false : data.get("hasServiceGroup") === "yes",
-          has_mini_program_profile: data.get("hasMiniProgramProfile") === "yes",
+          has_mini_program_profile: false,
           member_kind: isProspect ? "prospect" : "member",
           level: (isProspect ? "V1" : selectedLevel) as Member["level"],
           birthday: String(data.get("birthday")) || null,
@@ -1048,14 +1048,6 @@ function Members({
             <select name="hasServiceGroup" defaultValue="no">
               <option value="no">否</option>
               <option value="yes">是</option>
-            </select>
-          </label>
-          <label>
-            是否建档小程序
-            <select name="hasMiniProgramProfile" defaultValue="" required>
-              <option value="" disabled>请选择</option>
-              <option value="yes">是</option>
-              <option value="no">否</option>
             </select>
           </label>
           <label>
@@ -1274,7 +1266,7 @@ function MemberDetail({
         source_card_number: String(data.get("sourceCardNumber")).trim().toUpperCase() || null,
         consultant: String(data.get("consultant")) || null,
         has_service_group: isProspect ? false : data.get("hasServiceGroup") === "yes",
-        has_mini_program_profile: data.get("hasMiniProgramProfile") === "yes",
+        has_mini_program_profile: member.hasMiniProgramProfile,
         member_kind: isProspect ? "prospect" : "member",
         level: (isProspect ? "V1" : selectedLevel) as Member["level"],
         birthday: String(data.get("birthday")) || null,
@@ -1341,13 +1333,6 @@ function MemberDetail({
             </select>
           </label>
           <label>
-            建档小程序
-            <select name="hasMiniProgramProfile" defaultValue={member.hasMiniProgramProfile ? "yes" : "no"} required>
-              <option value="yes">是</option>
-              <option value="no">否</option>
-            </select>
-          </label>
-          <label>
             等级
             <select name="level" defaultValue={member.kind === "prospect" ? "prospect" : member.level}>
               {(["prospect", "V1", "V2", "V3", "V4", "V5"] as const).map((level) => (
@@ -1387,10 +1372,6 @@ function MemberDetail({
         <span>
           会员服务群
           <strong>{member.hasServiceGroup ? "已建群" : "未建群"}</strong>
-        </span>
-        <span>
-          建档小程序
-          <strong>{member.hasMiniProgramProfile ? "是" : "否"}</strong>
         </span>
         <span>
           所属咨询<strong>{member.consultant || "—"}</strong>
@@ -1863,7 +1844,7 @@ function ImportPage({
         <FileSpreadsheet size={34} />
         <h3>会员档案与历史治疗</h3>
         <p>
-          必填列：会员卡号、姓名、会员等级。支持附带所属咨询、是否建会员服务群、是否建档小程序、生日、入会日期、有效期和历史治疗日期；会员卡号作为导入与治疗到诊的唯一匹配依据。
+          必填列：会员卡号、姓名、会员等级。支持附带所属咨询、是否建会员服务群、生日、入会日期、有效期和历史治疗日期；会员卡号作为导入与治疗到诊的唯一匹配依据。
         </p>
         <label className="upload-button">
           选择 .xlsx 文件
