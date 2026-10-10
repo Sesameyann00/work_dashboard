@@ -1456,6 +1456,8 @@ function Tasks({
       (filter === "all" ||
         (filter === "overdue"
           ? t.due < today && t.status === "pending"
+          : filter === "completed"
+            ? t.status === "completed" || t.status === "confirmed"
           : t.status === filter)),
   );
   const dueVisible = visible.filter(
@@ -1586,6 +1588,7 @@ function Tasks({
             ["overdue", "已逾期"],
             ["completed", "已完成"],
             ["archived", "已归档"],
+            ["cancelled", "已取消"],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -1634,7 +1637,7 @@ function Tasks({
               {t.due}
             </span>
             <span>
-              {role !== "readonly" ? (
+              {t.status === "pending" && role !== "readonly" ? (
                 <span className="task-action-group">
                   <button
                     className="task-action-button complete"
@@ -1658,7 +1661,9 @@ function Tasks({
                 </span>
               ) : (
                 <em className="status">
-                  {t.status === "confirmed"
+                  {t.status === "pending"
+                    ? t.due < today ? "已逾期" : "待处理"
+                    : t.status === "confirmed"
                     ? "已确认"
                     : t.status === "completed"
                       ? "已完成"
