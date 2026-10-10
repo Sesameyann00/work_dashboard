@@ -4,6 +4,7 @@ export type Member = {
   cardNumber: string;
   sourceCardNumber?: string | null;
   name: string;
+  phone: string;
   consultant: string;
   hasServiceGroup: boolean;
   hasMiniProgramProfile: boolean;
@@ -36,6 +37,7 @@ export const demoMembers: Member[] = [
     id: "m1",
     cardNumber: "QZW5831047296",
     name: "林女士",
+    phone: "13800000001",
     consultant: "张顾问",
     hasServiceGroup: true,
     hasMiniProgramProfile: true,
@@ -52,6 +54,7 @@ export const demoMembers: Member[] = [
     id: "m2",
     cardNumber: "QZW2719460358",
     name: "陈女士",
+    phone: "13800000002",
     consultant: "李顾问",
     hasServiceGroup: true,
     hasMiniProgramProfile: true,
@@ -68,6 +71,7 @@ export const demoMembers: Member[] = [
     id: "m3",
     cardNumber: "QZW8043175629",
     name: "周女士",
+    phone: "13800000003",
     consultant: "张顾问",
     hasServiceGroup: false,
     hasMiniProgramProfile: true,
@@ -84,6 +88,7 @@ export const demoMembers: Member[] = [
     id: "m4",
     cardNumber: "QZW4196827503",
     name: "王女士",
+    phone: "13800000004",
     consultant: "王顾问",
     hasServiceGroup: true,
     hasMiniProgramProfile: true,
@@ -100,6 +105,7 @@ export const demoMembers: Member[] = [
     id: "m5",
     cardNumber: "QZW9362051847",
     name: "赵女士",
+    phone: "13800000005",
     consultant: "李顾问",
     hasServiceGroup: false,
     hasMiniProgramProfile: true,

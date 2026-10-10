@@ -5,7 +5,7 @@ export type MemberRow = {
   member_card_number: string
   source_card_number: string | null
   name: string
-  phone: string | null
+  phone: string
   consultant: string | null
   has_service_group: boolean
   has_mini_program_profile: boolean
@@ -76,6 +76,11 @@ export type CardSyncResult = {
   ambiguous: string[]
 }
 
+type MemberDirectoryMatchRow = Pick<
+  MemberRow,
+  'id' | 'name' | 'phone' | 'consultant' | 'joined_on' | 'source_card_number' | 'member_card_number'
+>
+
 function client() {
   if (!supabase) throw new Error('尚未配置 Supabase 环境变量')
   return supabase
@@ -112,7 +117,7 @@ export function onAuthStateChange(callback: (authenticated: boolean) => void) {
 }
 
 export async function listMembers() {
-  const { data, error } = await client().from('members').select('*').eq('is_archived', false).order('name')
+  const { data, error } = await client().rpc('get_member_directory').eq('is_archived', false).order('name')
   if (error) throw error
   return data as MemberRow[]
 }
@@ -188,6 +193,7 @@ export async function getMemberTimeline(memberId: string) {
 
 export async function createMember(input: {
   name: string
+  phone: string
   source_card_number: string
   consultant: string | null
   has_service_group: boolean
@@ -201,17 +207,15 @@ export async function createMember(input: {
 }) {
   const { data: auth } = await client().auth.getUser()
   if (!auth.user) throw new Error('登录会话已失效')
-  const { data, error } = await client()
+  const { error } = await client()
     .from('members')
     .insert({ ...input, created_by: auth.user.id, updated_by: auth.user.id })
-    .select('*')
-    .single()
   if (error) throw error
-  return data as MemberRow
 }
 
 export async function updateMember(memberId: string, input: {
   name: string
+  phone?: string
   source_card_number: string | null
   consultant: string | null
   has_service_group: boolean
@@ -225,14 +229,11 @@ export async function updateMember(memberId: string, input: {
 }) {
   const { data: auth } = await client().auth.getUser()
   if (!auth.user) throw new Error('登录会话已失效')
-  const { data, error } = await client()
+  const { error } = await client()
     .from('members')
     .update({ ...input, updated_by: auth.user.id })
     .eq('id', memberId)
-    .select('*')
-    .single()
   if (error) throw error
-  return data as MemberRow
 }
 
 export async function archiveMember(memberId: string) {
@@ -288,11 +289,11 @@ export async function syncMemberCardNumbers(entries: CardSyncEntry[]): Promise<C
   if (!auth.user) throw new Error('登录会话已失效')
 
   const { data, error } = await client()
-    .from('members')
+    .rpc('get_member_directory')
     .select('id,name,phone,consultant,joined_on,source_card_number,member_card_number')
   if (error) throw error
 
-  const members = data ?? []
+  const members = (data ?? []) as MemberDirectoryMatchRow[]
   const normalizePhone = (value: unknown) => String(value ?? '').replace(/\D/g, '')
   const byPhone = new Map<string, typeof members>()
   const byName = new Map<string, typeof members>()

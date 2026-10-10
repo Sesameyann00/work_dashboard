@@ -61,6 +61,28 @@ describe('Dashboard', () => {
     expect(screen.queryByText('王女士')).not.toBeInTheDocument()
   })
 
+  it('shows full member phones only to accounts 002 and 004', () => {
+    const { unmount } = render(<App />)
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
+    fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    fireEvent.click(screen.getByRole('button', { name: '会员管理' }))
+    fireEvent.click(screen.getByRole('button', { name: /林女士/ }))
+    expect(screen.getByText('13800000001')).toBeInTheDocument()
+    unmount()
+
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '001' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
+    fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'readonly' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    fireEvent.click(screen.getByRole('button', { name: '会员管理' }))
+    fireEvent.click(screen.getByRole('button', { name: /林女士/ }))
+    expect(screen.getByText('138****0001')).toBeInTheDocument()
+    expect(screen.queryByText('13800000001')).not.toBeInTheDocument()
+  })
+
   it('lets account 002 edit every service task status', () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })

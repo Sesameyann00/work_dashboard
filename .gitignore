@@ -13,6 +13,7 @@ dist-ssr
 test-results
 playwright-report
 .spreadsheet-runtime
+.impeccable/hook.cache.json
 supabase/.temp
 artifacts
 *.local

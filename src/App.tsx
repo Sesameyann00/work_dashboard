@@ -167,6 +167,12 @@ function oneYearAfter(date: string) {
   return next.toISOString().slice(0, 10);
 }
 
+function maskPhone(phone: string) {
+  if (!phone || phone.includes("*")) return phone || "—";
+  if (phone.length <= 7) return "****";
+  return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
+}
+
 function matchesCreatedRange(member: Member, range: "all" | "today" | "week" | "month") {
   if (range === "all") return true;
   if (!member.createdAt) return false;
@@ -182,6 +188,7 @@ function mapMember(row: MemberRow): Member {
     cardNumber: row.source_card_number || row.member_card_number,
     sourceCardNumber: row.source_card_number,
     name: row.name,
+    phone: row.phone,
     consultant: row.consultant || "",
     hasServiceGroup: row.has_service_group,
     hasMiniProgramProfile: row.has_mini_program_profile,
@@ -337,6 +344,7 @@ function Workspace({
   const [role, setRole] = useState<Role>(initialRole);
   const accountUsername = username.trim().toLowerCase();
   const canViewDashboard = accountUsername === "002";
+  const canViewFullPhone = ["002", "004"].includes(accountUsername);
   const canViewImport = !["001", "004"].includes(accountUsername);
   const [page, setPage] = useState<Page>(canViewDashboard ? "dashboard" : "today");
   const demoMode = isDemoAuthEnabled && !hasSupabaseConfig;
@@ -578,6 +586,7 @@ function Workspace({
               members={members}
               tasks={tasks}
               role={role}
+              canViewFullPhone={canViewFullPhone}
               searchQuery={globalQuery}
               onRefresh={refreshData}
               notify={notify}
@@ -960,6 +969,7 @@ function Members({
   members,
   tasks,
   role,
+  canViewFullPhone,
   searchQuery,
   onRefresh,
   notify,
@@ -967,6 +977,7 @@ function Members({
   members: Member[];
   tasks: Task[];
   role: Role;
+  canViewFullPhone: boolean;
   searchQuery: string;
   onRefresh: () => Promise<void>;
   notify: (s: string) => void;
@@ -1009,6 +1020,7 @@ function Members({
       if (hasSupabaseConfig) {
         await createMember({
           name: String(data.get("name")),
+          phone: String(data.get("phone")).trim(),
           source_card_number: sourceCardNumber,
           consultant: String(data.get("consultant")) || null,
           has_service_group: isProspect ? false : data.get("hasServiceGroup") === "yes",
@@ -1056,6 +1068,10 @@ function Members({
           <label>
             会员卡号
             <input name="sourceCardNumber" required placeholder="请输入原始会员卡号" />
+          </label>
+          <label>
+            手机号
+            <input name="phone" type="tel" inputMode="numeric" required pattern="[0-9+() -]{7,24}" placeholder="请输入手机号" />
           </label>
           <label>
             所属咨询
@@ -1238,6 +1254,7 @@ function Members({
         <MemberDetail
           member={selected}
           role={role}
+          canViewFullPhone={canViewFullPhone}
           onRefresh={onRefresh}
           notify={notify}
           onClose={() => setSelected(null)}
@@ -1250,12 +1267,14 @@ function Members({
 function MemberDetail({
   member,
   role,
+  canViewFullPhone,
   onRefresh,
   notify,
   onClose,
 }: {
   member: Member;
   role: Role;
+  canViewFullPhone: boolean;
   onRefresh: () => Promise<void>;
   notify: (message: string) => void;
   onClose: () => void;
@@ -1285,6 +1304,7 @@ function MemberDetail({
     try {
       await updateMember(member.id, {
         name: String(data.get("name")),
+        ...(canViewFullPhone ? { phone: String(data.get("phone")).trim() } : {}),
         source_card_number: String(data.get("sourceCardNumber")).trim().toUpperCase() || null,
         consultant: String(data.get("consultant")) || null,
         has_service_group: isProspect ? false : data.get("hasServiceGroup") === "yes",
@@ -1339,6 +1359,7 @@ function MemberDetail({
       {editing && (
         <form className="inline-form" onSubmit={save}>
           <label>姓名<input name="name" defaultValue={member.name} required /></label>
+          {canViewFullPhone && <label>手机号<input name="phone" type="tel" inputMode="numeric" defaultValue={member.phone} required pattern="[0-9+() -]{7,24}" /></label>}
           <label>会员卡号<input name="sourceCardNumber" defaultValue={member.sourceCardNumber || ""} placeholder="请输入原始会员卡号" /></label>
           <label>
             所属咨询
@@ -1388,6 +1409,9 @@ function MemberDetail({
         </form>
       )}
       <div className="detail-grid">
+        <span>
+          手机号<strong>{canViewFullPhone ? member.phone : maskPhone(member.phone)}</strong>
+        </span>
         <span>
           会员卡号<strong>{member.cardNumber}</strong>
         </span>

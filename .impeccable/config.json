@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-10T11:31:21.576Z",
+        "reason": "Existing operating-dashboard typeface predates this scoped phone-field change; preserving the incumbent UI system avoids unrelated visual churn."
+      }
+    ]
+  }
+}
