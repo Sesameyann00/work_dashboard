@@ -83,6 +83,7 @@ describe('Dashboard', () => {
     fireEvent.click(screen.getByRole('button', { name: /^服务任务/ }))
     fireEvent.click(screen.getByRole('button', { name: '已完成' }))
     expect(screen.getByText('操作时间 2026-10-02 14:30')).toBeInTheDocument()
+    expect(screen.getAllByText(/操作时间/)[0]).toHaveTextContent('操作时间 2026-10-05 09:15')
     expect(screen.queryByLabelText('完成 林女士 D1 回访')).not.toBeInTheDocument()
   })
 })

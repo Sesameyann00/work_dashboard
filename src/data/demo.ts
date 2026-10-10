@@ -195,4 +195,17 @@ export const demoTasks: Task[] = [
     responsibilityRole: "member_admin",
     actionAt: "2026-10-02T06:30:00.000Z",
   },
+  {
+    id: "t7",
+    memberId: "m2",
+    member: "陈女士",
+    level: "V4",
+    taskType: "followup_d3",
+    type: "D3 回访",
+    due: "2026-10-04",
+    status: "completed",
+    owner: "李顾问",
+    responsibilityRole: "member_admin",
+    actionAt: "2026-10-05T01:15:00.000Z",
+  },
 ];

@@ -1472,16 +1472,20 @@ function Tasks({
             : task.type.includes("D0")
               ? "care"
               : "other";
-  const shown = visible.filter(
-    (t) =>
-      (category === "all" || categoryOf(t) === category) &&
-      (filter === "all" ||
-        (filter === "overdue"
-          ? t.due < today && t.status === "pending"
-          : filter === "completed"
-            ? t.status === "completed" || t.status === "confirmed"
-          : t.status === filter)),
-  );
+  const shown = visible
+    .filter(
+      (t) =>
+        (category === "all" || categoryOf(t) === category) &&
+        (filter === "all" ||
+          (filter === "overdue"
+            ? t.due < today && t.status === "pending"
+            : filter === "completed"
+              ? t.status === "completed" || t.status === "confirmed"
+            : t.status === filter)),
+    )
+    .sort((a, b) => filter === "completed"
+      ? (b.actionAt || "").localeCompare(a.actionAt || "") || b.due.localeCompare(a.due)
+      : 0);
   const dueVisible = visible.filter(
     (task) => task.status === "pending" && task.due <= today,
   );
