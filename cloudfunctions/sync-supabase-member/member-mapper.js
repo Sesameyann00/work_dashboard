@@ -48,6 +48,13 @@ function requireText(value, fieldName) {
   return text;
 }
 
+function normalizePhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const phone = digits.startsWith("86") && digits.length === 13 ? digits.slice(2) : digits;
+  if (!/^1\d{10}$/.test(phone)) throw new Error("phone is invalid");
+  return phone;
+}
+
 function toIsoTimestamp(value) {
   if (!value) return null;
   const text = String(value).trim();
@@ -84,6 +91,7 @@ function mapMember(record) {
     id: requireText(record.id, "id"),
     card_no: cardNo,
     name: requireText(record.name, "name"),
+    phone: normalizePhone(record.phone),
     organization: "",
     gender: "",
     level,
@@ -106,4 +114,4 @@ function extractRecord(body) {
   return body.record || body.new || body;
 }
 
-module.exports = { LEVEL_LABELS, addCalendarMonths, entitlementForLevel, extractRecord, mapMember, toIsoTimestamp };
+module.exports = { LEVEL_LABELS, addCalendarMonths, entitlementForLevel, extractRecord, mapMember, normalizePhone, toIsoTimestamp };

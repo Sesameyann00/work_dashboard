@@ -1,6 +1,6 @@
 # Supabase → CloudBase member sync
 
-CloudBase Node.js 18 HTTP Function. It accepts Supabase Database Webhook `INSERT` and `UPDATE` events for `public.members`, validates `X-Sync-Secret`, maps the member fields, and writes to CloudBase PostgreSQL `public.members` using `card_no` as the business key.
+CloudBase Node.js HTTP Function. It accepts Supabase Database Webhook `INSERT` and `UPDATE` events for `public.members`, validates `X-Sync-Secret`, and writes the complete phone number, joining time, membership-change time and other member fields to CloudBase PostgreSQL `public.members` using `card_no` as the business key.
 
 For a newly inserted member, it initializes the guest-card pools from the membership level. When an existing member's level changes, it replaces the pool totals and eligible projects with the new level template; ordinary profile edits preserve consumed/remaining counts.
 
