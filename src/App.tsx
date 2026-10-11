@@ -23,6 +23,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Trash2,
   TrendingUp,
   UserRound,
   UsersRound,
@@ -55,6 +56,7 @@ import {
   archiveMember,
   createMember,
   createTreatment,
+  deleteTreatmentRecord,
   getDashboardData,
   getMemberTimeline,
   getMyProfile,
@@ -62,6 +64,7 @@ import {
   listMemberUpgradesThisMonth,
   listImportBatches,
   listTasks,
+  listTreatmentRecords,
   onAuthStateChange,
   processTaskBatch,
   restoreSession,
@@ -72,6 +75,7 @@ import {
   type MemberRow,
   type MemberUpgrade,
   type TimelineEvent,
+  type TreatmentRecord,
   syncMemberCardNumbers,
   updateMember,
 } from "./lib/api";
@@ -1482,6 +1486,7 @@ function Tasks({
     : roleVisible;
   const [filter, setFilter] = useState("all");
   const [category, setCategory] = useState("all");
+  const [ownerFilter, setOwnerFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchStatus, setBatchStatus] = useState<"completed" | "archived" | "cancelled">("completed");
   const categoryOf = (task: Task) =>
@@ -1496,7 +1501,11 @@ function Tasks({
             : task.type.includes("D0")
               ? "care"
               : "other";
-  const shown = visible
+  const owners = Array.from(new Set(visible.map((task) => task.owner).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, "zh-CN"),
+  );
+  const ownerVisible = visible.filter((task) => ownerFilter === "all" || task.owner === ownerFilter);
+  const shown = ownerVisible
     .filter(
       (t) =>
         (category === "all" || categoryOf(t) === category) &&
@@ -1510,7 +1519,7 @@ function Tasks({
     .sort((a, b) => filter === "completed"
       ? (b.actionAt || "").localeCompare(a.actionAt || "") || b.due.localeCompare(a.due)
       : 0);
-  const dueVisible = visible.filter(
+  const dueVisible = ownerVisible.filter(
     (task) => task.status === "pending" && task.due <= today,
   );
   const selectableShown = isHighestAdmin ? shown : shown.filter((task) => task.status === "pending");
@@ -1629,6 +1638,20 @@ function Tasks({
             </button>
           ))}
         </div>
+        <label className="toolbar-select task-owner-filter">
+          责任人
+          <select
+            aria-label="按责任人筛选"
+            value={ownerFilter}
+            onChange={(event) => {
+              setOwnerFilter(event.target.value);
+              setSelectedIds([]);
+            }}
+          >
+            <option value="all">全部责任人</option>
+            {owners.map((owner) => <option value={owner} key={owner}>{owner}</option>)}
+          </select>
+        </label>
       </div>
       {!todayOnly && <div className="toolbar">
         <div className="tabs">
@@ -1747,20 +1770,75 @@ function Visits({
   notify: (s: string) => void;
 }) {
   const [cardNumber, setCardNumber] = useState("");
+  const [records, setRecords] = useState<TreatmentRecord[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(hasSupabaseConfig);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const normalizedCardNumber = cardNumber.trim().toUpperCase();
   const member = members.find((m) => m.cardNumber.toUpperCase() === normalizedCardNumber);
   const today = todayInShanghai();
+  const canEdit = role === "member_admin" || role === "management";
+  const loadRecords = useCallback(async () => {
+    if (!hasSupabaseConfig) {
+      setRecords(
+        demoMembers
+          .filter((item) => item.kind === "member" && item.lastVisit && item.lastVisit !== "—")
+          .map((item) => ({
+            id: `demo-${item.id}`,
+            member_id: item.id,
+            treatment_date: item.lastVisit,
+            is_historical: true,
+            created_at: `${item.lastVisit}T00:00:00+08:00`,
+            members: { name: item.name, level: item.level },
+          }))
+          .sort((a, b) => b.treatment_date.localeCompare(a.treatment_date)),
+      );
+      setRecordsLoading(false);
+      return;
+    }
+    setRecordsLoading(true);
+    try {
+      setRecords(await listTreatmentRecords());
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "到诊记录加载失败");
+    } finally {
+      setRecordsLoading(false);
+    }
+  }, [notify]);
+  useEffect(() => {
+    queueMicrotask(() => void loadRecords());
+  }, [loadRecords]);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if ((role !== "member_admin" && role !== "management") || !member || member.kind === "prospect") return;
+    if (!canEdit || !member || member.kind === "prospect") return;
     const date = String(new FormData(e.currentTarget).get("date"));
     try {
       await createTreatment(member.id, date);
-      await onRefresh();
+      await Promise.all([onRefresh(), loadRecords()]);
       notify("治疗到诊与 D0–D30 服务周期已创建");
       setCardNumber("");
     } catch (error) {
       notify(error instanceof Error ? error.message : "治疗到诊保存失败");
+    }
+  };
+  const remove = async (record: TreatmentRecord) => {
+    if (!canEdit || !record.members) return;
+    const confirmed = window.confirm(
+      `确认删除“${record.members.name}”在 ${record.treatment_date} 的治疗到诊记录吗？\n本次服务周期和关联任务会同步删除；若这是最新到诊，上一轮服务周期将恢复。`,
+    );
+    if (!confirmed) return;
+    setDeletingId(record.id);
+    try {
+      if (hasSupabaseConfig) {
+        await deleteTreatmentRecord(record.id);
+        await Promise.all([onRefresh(), loadRecords()]);
+      } else {
+        setRecords((current) => current.filter((item) => item.id !== record.id));
+      }
+      notify("治疗到诊记录已删除");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "治疗到诊记录删除失败");
+    } finally {
+      setDeletingId(null);
     }
   };
   return (
@@ -1802,7 +1880,7 @@ function Visits({
           </label>
           <button
             className="primary-action wide"
-            disabled={!member || member.kind === "prospect" || (role !== "member_admin" && role !== "management")}
+            disabled={!member || member.kind === "prospect" || !canEdit}
           >
             保存治疗并创建服务周期
           </button>
@@ -1815,6 +1893,44 @@ function Visits({
           </p>
         </article>
       </div>
+      <section className="panel treatment-records">
+        <div className="treatment-records-head">
+          <div>
+            <h3>最近治疗到诊记录</h3>
+            <p>显示最近 100 条记录；删除用于纠正误录，并保留审计日志。</p>
+          </div>
+        </div>
+        <div className="data-table treatment-table">
+          <div className="data-row data-head">
+            <span>会员</span><span>等级</span><span>治疗日期</span><span>记录类型</span><span>操作</span>
+          </div>
+          {recordsLoading ? (
+            <div className="empty-state">正在加载到诊记录…</div>
+          ) : records.length === 0 ? (
+            <div className="empty-state">暂无治疗到诊记录</div>
+          ) : records.map((record) => (
+            <div className="data-row" key={record.id}>
+              <span><strong>{record.members?.name ?? "未知会员"}</strong><small>治疗到诊</small></span>
+              <span><em className={`level-badge ${record.members?.level ?? ""}`}>{record.members?.level ?? "—"}</em></span>
+              <span>{record.treatment_date}</span>
+              <span>{record.is_historical ? "历史导入" : "日常录入"}</span>
+              <span>
+                {canEdit && (
+                  <button
+                    className="danger-action treatment-delete"
+                    type="button"
+                    disabled={deletingId === record.id}
+                    aria-label={`删除 ${record.members?.name ?? "未知会员"} ${record.treatment_date} 到诊记录`}
+                    onClick={() => void remove(record)}
+                  >
+                    <Trash2 size={14} />{deletingId === record.id ? "删除中" : "删除"}
+                  </button>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
     </>
   );
 }

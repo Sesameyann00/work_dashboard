@@ -59,6 +59,18 @@ export type ImportBatch = {
   created_at: string
 }
 
+export type TreatmentRecord = {
+  id: string
+  member_id: string
+  treatment_date: string
+  is_historical: boolean
+  created_at: string
+  members: {
+    name: string
+    level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
+  } | null
+}
+
 export type CardSyncEntry = {
   cardNumber: string
   name: string
@@ -253,6 +265,23 @@ export async function listImportBatches() {
 
 export async function createTreatment(memberId: string, date: string) {
   const { data, error } = await client().rpc('create_treatment_cycle', { target_member_id: memberId, target_date: date })
+  if (error) throw error
+  return data
+}
+
+export async function listTreatmentRecords() {
+  const { data, error } = await client()
+    .from('treatments')
+    .select('id,member_id,treatment_date,is_historical,created_at,members(name,level)')
+    .order('treatment_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) throw error
+  return data as unknown as TreatmentRecord[]
+}
+
+export async function deleteTreatmentRecord(treatmentId: string) {
+  const { data, error } = await client().rpc('delete_treatment_record', { target_treatment_id: treatmentId })
   if (error) throw error
   return data
 }

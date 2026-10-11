@@ -32,3 +32,28 @@ test('dashboard exposes core daily work', async ({ page }) => {
   await page.getByRole('checkbox', { name: '选择当前列表全部待处理任务' }).check()
   await expect(page.getByText(/已选 \d+ 项/)).toBeVisible()
 })
+
+test('management can see treatment record delete controls', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('登录名').fill('002')
+  await page.getByLabel('密码').fill('Demo123!')
+  await page.getByLabel('演示角色').selectOption('management')
+  await page.getByRole('button', { name: '登录' }).click()
+  await page.getByRole('button', { name: '治疗到诊' }).click()
+  await expect(page.getByRole('heading', { name: '新增治疗到诊', level: 2 })).toBeVisible()
+  await expect(page.getByText('最近治疗到诊记录')).toBeVisible()
+  await expect(page.getByRole('button', { name: /删除 .* 到诊记录/ }).first()).toBeVisible()
+})
+
+test('tasks can be filtered by owner', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('登录名').fill('002')
+  await page.getByLabel('密码').fill('Demo123!')
+  await page.getByLabel('演示角色').selectOption('management')
+  await page.getByRole('button', { name: '登录' }).click()
+  await page.getByRole('button', { name: /今日待办/ }).click()
+  await page.getByLabel('按责任人筛选').selectOption('张顾问')
+  const rows = page.locator('.task-table .data-row:not(.data-head)')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.filter({ hasNotText: '张顾问' })).toHaveCount(0)
+})

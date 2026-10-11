@@ -95,6 +95,7 @@
 .metric-card > strong { color: var(--ink); }
 .clickable-panel { cursor: pointer; transition: transform .18s, box-shadow .18s; }
 .category-tabs { width: 100%; overflow-x: auto; }
+.task-owner-filter { flex: 0 0 auto; }
 .category-tabs button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .category-tabs small { min-width: 18px; padding: 1px 5px; border-radius: 9px; background: #ded9e4; color: #675e70; font-size: 9px; }
 .category-tabs button.active small { background: #6a518d; color: #fff; }
@@ -234,6 +235,7 @@
 .member-form-actions .primary-action,
 .member-form-actions .danger-action { flex: 1; justify-content: center; white-space: nowrap; }
 .danger-action { height: 40px; padding: 0 14px; border: 1px solid #d9b9bd; border-radius: 11px; background: #fff; color: #a13f49; }
+.danger-action:disabled { opacity: 0.45; cursor: not-allowed; }
 .drawer {
   position: fixed;
   z-index: 30;
@@ -361,6 +363,12 @@
   font-size: 12px;
   line-height: 1.7;
 }
+.treatment-records { margin-top: 16px; overflow: hidden; }
+.treatment-records-head { padding: 18px; }
+.treatment-records-head h3 { margin: 0; font-size: 15px; }
+.treatment-records-head p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+.treatment-table .data-row { grid-template-columns: 1.3fr .55fr .8fr .75fr .65fr; }
+.treatment-delete { width: fit-content; height: 32px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; font-size: 11px; }
 .import-card {
   max-width: 680px;
   padding: 38px;
