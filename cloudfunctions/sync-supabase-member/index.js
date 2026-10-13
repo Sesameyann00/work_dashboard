@@ -45,24 +45,32 @@ function readJsonBody(req) {
 }
 
 async function syncMember(member) {
-  const { data: existing, error: readError } = await db
-    .from("members")
-    .select("card_no,level,version")
-    .eq("card_no", member.card_no)
-    .limit(1);
-  if (readError) throw readError;
+  const [cardResult, phoneResult] = await Promise.all([
+    db.from("members").select("id,card_no,phone,level,version").eq("card_no", member.card_no).limit(1),
+    db.from("members").select("id,card_no,phone,level,version").eq("phone", member.phone).limit(1),
+  ]);
+  if (cardResult.error) throw cardResult.error;
+  if (phoneResult.error) throw phoneResult.error;
 
-  if (existing && existing.length > 0) {
-    const nextVersion = Number(existing[0].version || 0) + 1;
-    const levelChanged = existing[0].level !== member.level;
+  const cardMatch = cardResult.data && cardResult.data[0];
+  const phoneMatch = phoneResult.data && phoneResult.data[0];
+  if (cardMatch && phoneMatch && cardMatch.id !== phoneMatch.id) {
+    throw new Error("card number and phone resolve to different members");
+  }
+  const existing = cardMatch || phoneMatch;
+
+  if (existing) {
+    const nextVersion = Number(existing.version || 0) + 1;
+    const levelChanged = existing.level !== member.level;
     const { error } = await db
       .from("members")
       .update({
         ...member,
+        id: existing.id,
         ...(levelChanged ? entitlementForLevel(member.level) : {}),
         version: nextVersion,
       })
-      .eq("card_no", member.card_no);
+      .eq("id", existing.id);
     if (error) throw error;
     return "updated";
   }
@@ -74,11 +82,17 @@ async function syncMember(member) {
     created_at: new Date().toISOString(),
   });
   if (error) {
-    // A concurrent delivery may have inserted the same card number. Retry as an update.
+    // A concurrent delivery may have inserted the same card number or phone.
+    const { data: concurrent, error: lookupError } = await db
+      .from("members")
+      .select("id")
+      .eq("phone", member.phone)
+      .limit(1);
+    if (lookupError || !concurrent || concurrent.length === 0) throw error;
     const { error: retryError } = await db
       .from("members")
-      .update(member)
-      .eq("card_no", member.card_no);
+      .update({ ...member, id: concurrent[0].id })
+      .eq("id", concurrent[0].id);
     if (retryError) throw error;
     return "updated";
   }
