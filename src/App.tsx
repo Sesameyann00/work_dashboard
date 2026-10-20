@@ -108,6 +108,7 @@ const taskNames: Record<string, string> = {
   share_benefit_end_15d: "分享权益结束前 15 天提醒",
   share_benefit_end_7d: "分享权益剩余 7 天提醒",
   share_benefit_guest_card_day_1: "分享会员请客卡小程序",
+  member_group_setup: "当日建群",
 };
 
 function todayInShanghai() {
@@ -218,7 +219,6 @@ function mapMember(row: MemberRow): Member {
     name: row.name,
     phone: row.phone,
     consultant: row.consultant || "",
-    hasServiceGroup: row.has_service_group,
     hasMiniProgramProfile: row.has_mini_program_profile,
     kind: row.member_kind,
     level: row.level,
@@ -1051,7 +1051,6 @@ function Members({
           phone: String(data.get("phone")).trim(),
           source_card_number: sourceCardNumber,
           consultant: String(data.get("consultant")) || null,
-          has_service_group: isProspect ? false : data.get("hasServiceGroup") === "yes",
           has_mini_program_profile: false,
           member_kind: isProspect ? "prospect" : "member",
           level: (isProspect ? "V1" : selectedLevel) as Member["level"],
@@ -1107,13 +1106,6 @@ function Members({
               <option value="" disabled>请选择所属咨询</option>
               <option value="孙亚亚">孙亚亚</option>
               <option value="马芷怡">马芷怡</option>
-            </select>
-          </label>
-          <label>
-            是否建会员服务群
-            <select name="hasServiceGroup" defaultValue="no">
-              <option value="no">否</option>
-              <option value="yes">是</option>
             </select>
           </label>
           <label>
@@ -1337,7 +1329,6 @@ function MemberDetail({
         ...(canViewFullPhone ? { phone: String(data.get("phone")).trim() } : {}),
         source_card_number: String(data.get("sourceCardNumber")).trim().toUpperCase() || null,
         consultant: String(data.get("consultant")) || null,
-        has_service_group: isProspect ? false : data.get("hasServiceGroup") === "yes",
         has_mini_program_profile: member.hasMiniProgramProfile,
         member_kind: isProspect ? "prospect" : "member",
         level: (isProspect ? "V1" : selectedLevel) as Member["level"],
@@ -1399,13 +1390,6 @@ function MemberDetail({
             </select>
           </label>
           <label>
-            会员服务群
-            <select name="hasServiceGroup" defaultValue={member.hasServiceGroup ? "yes" : "no"}>
-              <option value="yes">已建群</option>
-              <option value="no">未建群</option>
-            </select>
-          </label>
-          <label>
             等级
             <select name="level" defaultValue={member.kind === "prospect" ? "prospect" : member.level}>
               {(["prospect", "V1", "V2", "V3", "V4", "V5"] as const).map((level) => (
@@ -1444,10 +1428,6 @@ function MemberDetail({
         </span>
         <span>
           会员卡号<strong>{member.cardNumber}</strong>
-        </span>
-        <span>
-          会员服务群
-          <strong>{member.hasServiceGroup ? "已建群" : "未建群"}</strong>
         </span>
         <span>
           所属咨询<strong>{member.consultant || "—"}</strong>
@@ -1516,7 +1496,9 @@ function Tasks({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchStatus, setBatchStatus] = useState<"completed" | "archived" | "cancelled">("completed");
   const categoryOf = (task: Task) =>
-    task.type.includes("有效期")
+    task.taskType === "member_group_setup"
+      ? "member_group"
+      : task.type.includes("有效期")
       ? "member_expiry"
       : task.taskType.startsWith("share_benefit_")
         ? "share_expiry"
@@ -1656,6 +1638,7 @@ function Tasks({
             ["member_expiry", "会员到期"],
             ["share_expiry", "分享权益提醒"],
             ["birthday", "生日月提醒"],
+            ["member_group", "入会建群"],
             ["followup", "回访提醒"],
             ["care", "D0 护理确认"],
           ].map(([id, label]) => (
@@ -2044,7 +2027,7 @@ function ImportPage({
         <FileSpreadsheet size={34} />
         <h3>会员档案与历史治疗</h3>
         <p>
-          必填列：会员卡号、姓名、会员等级。支持附带所属咨询、是否建会员服务群、生日、入会日期、有效期和历史治疗日期；会员卡号作为导入与治疗到诊的唯一匹配依据。
+          必填列：会员卡号、姓名、会员等级。支持附带所属咨询、生日、入会日期、有效期和历史治疗日期；会员卡号作为导入与治疗到诊的唯一匹配依据。
         </p>
         <label className="upload-button">
           选择 .xlsx 文件

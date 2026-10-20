@@ -6,7 +6,6 @@ export type Member = {
   name: string;
   phone: string;
   consultant: string;
-  hasServiceGroup: boolean;
   hasMiniProgramProfile: boolean;
   kind: "prospect" | "member";
   level: "V1" | "V2" | "V3" | "V4" | "V5";
@@ -39,7 +38,6 @@ export const demoMembers: Member[] = [
     name: "林女士",
     phone: "13800000001",
     consultant: "张顾问",
-    hasServiceGroup: true,
     hasMiniProgramProfile: true,
     kind: "member",
     level: "V5",
@@ -56,7 +54,6 @@ export const demoMembers: Member[] = [
     name: "陈女士",
     phone: "13800000002",
     consultant: "李顾问",
-    hasServiceGroup: true,
     hasMiniProgramProfile: true,
     kind: "member",
     level: "V4",
@@ -73,7 +70,6 @@ export const demoMembers: Member[] = [
     name: "周女士",
     phone: "13800000003",
     consultant: "张顾问",
-    hasServiceGroup: false,
     hasMiniProgramProfile: true,
     kind: "member",
     level: "V5",
@@ -90,7 +86,6 @@ export const demoMembers: Member[] = [
     name: "王女士",
     phone: "13800000004",
     consultant: "王顾问",
-    hasServiceGroup: true,
     hasMiniProgramProfile: true,
     kind: "member",
     level: "V3",
@@ -107,7 +102,6 @@ export const demoMembers: Member[] = [
     name: "赵女士",
     phone: "13800000005",
     consultant: "李顾问",
-    hasServiceGroup: false,
     hasMiniProgramProfile: true,
     kind: "member",
     level: "V2",
@@ -213,5 +207,17 @@ export const demoTasks: Task[] = [
     owner: "李顾问",
     responsibilityRole: "member_admin",
     actionAt: "2026-10-05T01:15:00.000Z",
+  },
+  {
+    id: "t8",
+    memberId: "m1",
+    member: "林女士",
+    level: "V5",
+    taskType: "member_group_setup",
+    type: "当日建群",
+    due: "2026-10-20",
+    status: "pending",
+    owner: "会员中心",
+    responsibilityRole: "member_admin",
   },
 ];

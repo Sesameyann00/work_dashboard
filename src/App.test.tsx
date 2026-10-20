@@ -95,6 +95,20 @@ describe('Dashboard', () => {
     expect(screen.queryByText('13800000001')).not.toBeInTheDocument()
   })
 
+  it('shows same-day group setup as a member-center task without profile group fields', () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo123!' } })
+    fireEvent.change(screen.getByLabelText('演示角色'), { target: { value: 'management' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    fireEvent.click(screen.getByRole('button', { name: /今日待办/ }))
+    const groupTask = screen.getByText('当日建群').closest('.data-row')
+    expect(groupTask).toHaveTextContent('会员中心')
+    fireEvent.click(screen.getByRole('button', { name: '会员管理' }))
+    fireEvent.click(screen.getByRole('button', { name: '新增会员' }))
+    expect(screen.queryByText('是否建会员服务群')).not.toBeInTheDocument()
+  })
+
   it('lets account 002 edit every service task status', () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('登录名'), { target: { value: '002' } })

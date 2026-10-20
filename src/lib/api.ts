@@ -208,7 +208,6 @@ export async function createMember(input: {
   phone: string
   source_card_number: string
   consultant: string | null
-  has_service_group: boolean
   has_mini_program_profile: boolean
   member_kind: 'prospect' | 'member'
   level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
@@ -230,7 +229,6 @@ export async function updateMember(memberId: string, input: {
   phone?: string
   source_card_number: string | null
   consultant: string | null
-  has_service_group: boolean
   has_mini_program_profile: boolean
   member_kind: 'prospect' | 'member'
   level: 'V1' | 'V2' | 'V3' | 'V4' | 'V5'
