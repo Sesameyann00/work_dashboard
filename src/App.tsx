@@ -132,6 +132,30 @@ function displayDate(date: string | null | undefined) {
   return date || "—";
 }
 
+function displayBirthday(date: string | null | undefined) {
+  if (!date) return "—";
+  const match = /^\d{4}-(\d{2}-\d{2})$/.exec(date);
+  return match?.[1] || date;
+}
+
+function birthdayDateValue(value: string) {
+  const birthday = value.trim();
+  if (!birthday) return null;
+  const match = /^(\d{2})-(\d{2})$/.exec(birthday);
+  if (!match) throw new Error("生日请按 MM-DD 格式填写，例如 08-15");
+  const [, month, day] = match;
+  const normalized = `2000-${month}-${day}`;
+  const parsed = new Date(`${normalized}T00:00:00Z`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCMonth() + 1 !== Number(month) ||
+    parsed.getUTCDate() !== Number(day)
+  ) {
+    throw new Error("请输入有效的生日月日");
+  }
+  return normalized;
+}
+
 function displayActionTime(value: string | undefined) {
   if (!value) return "";
   const parts = new Intl.DateTimeFormat("zh-CN", {
@@ -198,7 +222,7 @@ function mapMember(row: MemberRow): Member {
     hasMiniProgramProfile: row.has_mini_program_profile,
     kind: row.member_kind,
     level: row.level,
-    birthday: displayDate(row.birthday),
+    birthday: displayBirthday(row.birthday),
     joinedOn: displayDate(row.joined_on),
     membershipChangedOn: displayDate(row.membership_changed_on),
     validUntil: displayDate(row.valid_until),
@@ -1031,7 +1055,7 @@ function Members({
           has_mini_program_profile: false,
           member_kind: isProspect ? "prospect" : "member",
           level: (isProspect ? "V1" : selectedLevel) as Member["level"],
-          birthday: String(data.get("birthday")) || null,
+          birthday: birthdayDateValue(String(data.get("birthday"))),
           joined_on: String(data.get("joinedOn")) || null,
           membership_changed_on: String(data.get("membershipChangedOn")) || String(data.get("joinedOn")) || null,
           valid_until: String(data.get("validUntil")) || null,
@@ -1101,8 +1125,8 @@ function Members({
             </select>
           </label>
           <label>
-            生日
-            <input name="birthday" type="date" />
+            生日（月-日）
+            <input name="birthday" inputMode="numeric" placeholder="MM-DD，例如 08-15" pattern="(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])" maxLength={5} />
           </label>
           <label>
             入会日期
@@ -1197,6 +1221,7 @@ function Members({
           ) : (
             <>
               <span>所属咨询</span>
+              <span>生日</span>
               <span>会员变动日期</span>
               <span>有效期</span>
               <span>最近到诊</span>
@@ -1245,6 +1270,7 @@ function Members({
             ) : (
               <>
                 <span>{m.consultant || "—"}</span>
+                <span>{m.birthday}</span>
                 <span>{m.membershipChangedOn || "—"}</span>
                 <span>{m.validUntil}</span>
                 <span>{m.lastVisit}</span>
@@ -1315,7 +1341,7 @@ function MemberDetail({
         has_mini_program_profile: member.hasMiniProgramProfile,
         member_kind: isProspect ? "prospect" : "member",
         level: (isProspect ? "V1" : selectedLevel) as Member["level"],
-        birthday: String(data.get("birthday")) || null,
+        birthday: birthdayDateValue(String(data.get("birthday"))),
         joined_on: String(data.get("joinedOn")) || null,
         membership_changed_on: String(data.get("membershipChangedOn")) || null,
         valid_until: String(data.get("validUntil")) || null,
@@ -1387,7 +1413,7 @@ function MemberDetail({
               ))}
             </select>
           </label>
-          <label>生日<input name="birthday" type="date" defaultValue={member.birthday === "—" ? "" : member.birthday} /></label>
+          <label>生日（月-日）<input name="birthday" inputMode="numeric" placeholder="MM-DD，例如 08-15" pattern="(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])" maxLength={5} defaultValue={member.birthday === "—" ? "" : member.birthday} /></label>
           <label>入会日期<input name="joinedOn" type="date" defaultValue={member.joinedOn === "—" ? "" : member.joinedOn} /></label>
           <label>
             会员变动日期

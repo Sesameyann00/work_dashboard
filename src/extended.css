@@ -125,7 +125,7 @@
   font-size: 12px;
 }
 .members-manage .data-row {
-  grid-template-columns: 1.35fr 0.45fr 0.8fr 0.8fr 0.9fr 0.9fr 0.55fr;
+  grid-template-columns: 1.35fr 0.45fr 0.8fr 0.72fr 0.8fr 0.9fr 0.9fr 0.55fr;
 }
 .level-chart {
   height: 218px;
@@ -538,6 +538,9 @@
   }
   .data-row {
     min-width: 700px;
+  }
+  .members-manage .data-row {
+    min-width: 860px;
   }
 }
 @media (max-width: 600px) {
