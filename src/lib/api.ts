@@ -136,22 +136,44 @@ export async function listMembers() {
 
 export async function listTasks() {
   const pageSize = 1000
-  const rows: Record<string, unknown>[] = []
+  const fields = 'id,member_id,task_type,due_date,status,completed_at,updated_at,members(name,level,member_kind,consultant)'
+  const recentCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const shanghaiToday = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+  const [year, month, day] = shanghaiToday.split('-').map(Number)
+  const pendingWindowEnd = new Date(Date.UTC(year, month - 1, day + 2)).toISOString().slice(0, 10)
 
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await client()
-      .from('tasks')
-      .select('id,member_id,task_type,due_date,status,completed_at,updated_at,members(name,level,member_kind,consultant)')
-      .order('due_date')
-      .order('id')
-      .range(from, from + pageSize - 1)
-    if (error) throw error
+  const loadPages = async (status: 'pending' | 'processed') => {
+    const rows: Record<string, unknown>[] = []
+    for (let from = 0; ; from += pageSize) {
+      let query = client()
+        .from('tasks')
+        .select(fields)
+        .order('due_date')
+        .order('id')
+        .range(from, from + pageSize - 1)
+      query = status === 'pending'
+        ? query.eq('status', 'pending').lte('due_date', pendingWindowEnd)
+        : query.neq('status', 'pending').gte('updated_at', recentCutoff)
 
-    rows.push(...(data ?? []))
-    if (!data || data.length < pageSize) break
+      const { data, error } = await query
+      if (error) throw error
+
+      rows.push(...(data ?? []))
+      if (!data || data.length < pageSize) break
+    }
+    return rows
   }
 
-  return rows
+  const [pending, recentlyProcessed] = await Promise.all([
+    loadPages('pending'),
+    loadPages('processed'),
+  ])
+  return [...pending, ...recentlyProcessed]
 }
 
 export async function getDashboardData(): Promise<DashboardData> {

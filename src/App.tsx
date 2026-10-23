@@ -122,6 +122,11 @@ function todayInShanghai() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
+function addCalendarDays(date: string, days: number) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 function fullDateInShanghai() {
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
@@ -1485,6 +1490,7 @@ function Tasks({
   notify: (s: string) => void;
 }) {
   const today = todayInShanghai();
+  const pendingWindowEnd = addCalendarDays(today, 2);
   const roleVisible =
     role === "head_nurse" ? tasks.filter((t) => t.responsibilityRole === "head_nurse") : tasks;
   const visible = todayOnly
@@ -1522,7 +1528,9 @@ function Tasks({
             ? t.due < today && t.status === "pending"
             : filter === "completed"
               ? t.status === "completed" || t.status === "confirmed"
-            : t.status === filter)),
+            : filter === "pending"
+              ? t.status === "pending" && t.due >= today && t.due <= pendingWindowEnd
+              : t.status === filter)),
     )
     .sort((a, b) => filter === "completed"
       ? (b.actionAt || "").localeCompare(a.actionAt || "") || b.due.localeCompare(a.due)
