@@ -135,9 +135,23 @@ export async function listMembers() {
 }
 
 export async function listTasks() {
-  const { data, error } = await client().from('tasks').select('id,member_id,task_type,due_date,status,completed_at,updated_at,members(name,level,member_kind,consultant)').order('due_date')
-  if (error) throw error
-  return data
+  const pageSize = 1000
+  const rows: Record<string, unknown>[] = []
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await client()
+      .from('tasks')
+      .select('id,member_id,task_type,due_date,status,completed_at,updated_at,members(name,level,member_kind,consultant)')
+      .order('due_date')
+      .order('id')
+      .range(from, from + pageSize - 1)
+    if (error) throw error
+
+    rows.push(...(data ?? []))
+    if (!data || data.length < pageSize) break
+  }
+
+  return rows
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
